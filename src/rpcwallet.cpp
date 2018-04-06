@@ -3,6 +3,7 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "util.h"
 #include "base58.h"
 #include "stealth.h"
 #include "smessage.h"
@@ -10,7 +11,6 @@
 #include "init.h"
 #include "net.h"
 #include "netbase.h"
-#include "util.h"
 #include "wallet.h"
 #include "walletdb.h"
 

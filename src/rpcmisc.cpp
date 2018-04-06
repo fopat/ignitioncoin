@@ -3,13 +3,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "util.h"
 #include "base58.h"
 #include "init.h"
 #include "main.h"
 #include "net.h"
 #include "netbase.h"
 #include "rpcserver.h"
-#include "util.h"
 #include "stealth.h"
 #include "spork.h"
 #ifdef ENABLE_WALLET

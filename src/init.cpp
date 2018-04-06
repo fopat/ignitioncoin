@@ -3,6 +3,7 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "util.h"
 #include "init.h"
 
 #include "addrman.h"
@@ -13,7 +14,6 @@
 #include "net.h"
 #include "key.h"
 #include "pubkey.h"
-#include "util.h"
 #include "ui_interface.h"
 #include "checkpoints.h"
 #include "darksend-relay.h"

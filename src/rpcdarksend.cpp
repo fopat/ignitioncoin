@@ -3,6 +3,7 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "util.h"
 #include "main.h"
 #include "core.h"
 #include "db.h"
@@ -13,7 +14,6 @@
 #include "rpcserver.h"
 #include <boost/lexical_cast.hpp>
 //#include "amount.h"
-#include "util.h"
 //#include "utilmoneystr.h"
 
 #include <fstream>

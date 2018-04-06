@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#else
+#include <windows.h>
 #endif
 
 #include "serialize.h"
