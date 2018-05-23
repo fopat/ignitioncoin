@@ -1433,47 +1433,68 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
-	unsigned int nTargetTemp = TARGET_SPACING;
-	// if (pindexLast->nTime > FORK_TIME)
-	// 	nTargetTemp = TARGET_SPACING2;
-  nTargetTemp = TARGET_SPACING;
-
-	// if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME)
-	// nTargetTimespan = 2 * 60; // 2 minutes
-  //
-	// if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME1)
-	// nTargetTimespan = 10 * 60; // 10 minutes
-    nTargetTimespan = 10 * 60; // 10 minutes
-
+    CBigNum bnNew;
     CBigNum bnTargetLimit = fProofOfStake ? GetProofOfStakeLimit(pindexLast->nHeight) : Params().ProofOfWorkLimit();
 
-    if (pindexLast == NULL)
-        return bnTargetLimit.GetCompact(); // genesis block
+    LogPrintf("****** GetNextTargetRequired - START\n");
 
-
+    /* The genesis block */
+    if(pindexLast == NULL) return bnTargetLimit.GetCompact();
     const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
-    if (pindexPrev->pprev == NULL)
-        return bnTargetLimit.GetCompact(); // first block
+    /* The 1st block */
+    if(pindexPrev->pprev == NULL) return bnTargetLimit.GetCompact();
     const CBlockIndex* pindexPrevPrev = GetLastBlockIndex(pindexPrev->pprev, fProofOfStake);
-    if (pindexPrevPrev->pprev == NULL)
-        return bnTargetLimit.GetCompact(); // second block
+    /* The 2nd block */
+    if(pindexPrevPrev->pprev == NULL) return bnTargetLimit.GetCompact();
+    /* The next block */
+    int nHeight = pindexLast->nHeight + 1;
+    LogPrintf("Block height: %d\n", nHeight);
 
-    int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+    if((fTestNet && (nHeight <= nTestnetForkOne)) ||
+      (!fTestNet && (nHeight <= nForkOne)))
+    {
+        // Legacy algo
+        unsigned int nTargetTemp = TARGET_SPACING;
+        // if (pindexLast->nTime > FORK_TIME)
+        // 	nTargetTemp = TARGET_SPACING2;
+        nTargetTemp = TARGET_SPACING;
 
-    if (nActualSpacing < 0){
-        nActualSpacing = nTargetTemp;
+        // if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME)
+        // nTargetTimespan = 2 * 60; // 2 minutes
+        //
+        // if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME1)
+        // nTargetTimespan = 10 * 60; // 10 minutes
+        nTargetTimespan = 10 * 60; // 10 minutes
+
+        int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+
+        if (nActualSpacing < 0){
+            nActualSpacing = nTargetTemp;
+        }
+
+        // ppcoin: target change every block
+        // ppcoin: retarget with exponential moving toward target spacing
+        bnNew.SetCompact(pindexPrev->nBits);
+        int64_t nInterval = nTargetTimespan / nTargetTemp;
+        bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
+        bnNew /= ((nInterval + 1) * nTargetTemp);
+
+        if (bnNew <= 0 || bnNew > bnTargetLimit)
+            bnNew = bnTargetLimit;
+
+        LogPrintf("Legacy algo: %08x\n", bnNew.GetCompact());
+    }
+    else
+    {
+        // New algo
+        // Test to validate the fork mechanism
+        bnNew.SetCompact(pindexPrev->nBits);
+        bnNew /= 2;
+
+        LogPrintf("New algo: %08x\n", bnNew.GetCompact());
     }
 
-    // ppcoin: target change every block
-    // ppcoin: retarget with exponential moving toward target spacing
-    CBigNum bnNew;
-    bnNew.SetCompact(pindexPrev->nBits);
-    int64_t nInterval = nTargetTimespan / nTargetTemp;
-    bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
-    bnNew /= ((nInterval + 1) * nTargetTemp);
-
-    if (bnNew <= 0 || bnNew > bnTargetLimit)
-        bnNew = bnTargetLimit;
+    LogPrintf("****** GetNextTargetRequired - END\n");
 
     return bnNew.GetCompact();
 }
