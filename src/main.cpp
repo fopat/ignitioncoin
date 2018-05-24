@@ -1431,8 +1431,35 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
     return pindex;
 }
 
+double TargetToDifficulty(unsigned int nBits)
+{
+    int nShift = (nBits >> 24) & 0xff;
+
+    double dDiff =
+        (double)0x0000ffff / (double)(nBits & 0x00ffffff);
+
+    while (nShift < 29)
+    {
+        dDiff *= 256.0;
+        nShift++;
+    }
+    while (nShift > 29)
+    {
+        dDiff /= 256.0;
+        nShift--;
+    }
+
+    return dDiff;
+}
+
+unsigned int DifficultyToTarget(double dDiff, CBigNum bnTargetLimit)
+{
+    return 0; // TODO-JR
+}
+
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
+    unsigned int nNextTarget;
     CBigNum bnNew;
     CBigNum bnTargetLimit = fProofOfStake ? GetProofOfStakeLimit(pindexLast->nHeight) : Params().ProofOfWorkLimit();
 
@@ -1482,21 +1509,83 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
         if (bnNew <= 0 || bnNew > bnTargetLimit)
             bnNew = bnTargetLimit;
 
-        LogPrintf("Legacy algo: %08x\n", bnNew.GetCompact());
+        nNextTarget = bnNew.GetCompact();
+        LogPrintf("Legacy algo: %08x\n", nNextTarget);
     }
     else
     {
-        // New algo
-        // Test to validate the fork mechanism
-        bnNew.SetCompact(pindexPrev->nBits);
-        bnNew /= 2;
+        // New algo: LWMA-2
+        std::vector<std::int64_t> vTimestamps; 
+        std::vector<double> vCumulativeDifficulties;
 
-        LogPrintf("New algo: %08x\n", bnNew.GetCompact());
+        // Get the N previous timestamps and difficulties
+        const CBlockIndex* pindex = pindexLast;
+        for ( int64_t i = 0; i < DIFFICULTY_WINDOW; i++)
+        {  
+            // Difficulty reset: only accept blocks after the fork
+            if(pindex == NULL ||
+                (fTestNet && (pindex->nHeight <= nTestnetForkOne)) ||
+                (!fTestNet && (pindex->nHeight <= nForkOne)))
+            {
+                if (pindex == NULL) LogPrintf("BREAK\n");
+                else LogPrintf("BREAK at block %d", pindex->nHeight);
+                break;
+            }
+
+            vTimestamps.push_back(pindex->GetBlockTime());
+            vCumulativeDifficulties.push_back(TargetToDifficulty(pindex->nBits));
+            LogPrintf("Block %d - Timestamp: %ld, Diff: %f\n", pindex->nHeight, pindex->GetBlockTime(), TargetToDifficulty(pindex->nBits));
+
+            pindex = GetLastBlockIndex(pindex, fProofOfStake);
+        }
+
+        // Get the next difficulty and convert it to a target
+        double dNextDiff = GetNextDifficulty(vTimestamps, vCumulativeDifficulties);
+        nNextTarget = DifficultyToTarget(dNextDiff, bnTargetLimit);
+
+        LogPrintf("New algo: %08x\n", nNextTarget);
     }
 
     LogPrintf("****** GetNextTargetRequired - END\n");
 
-    return bnNew.GetCompact();
+    return nNextTarget;
+}
+
+double GetNextDifficulty(std::vector<std::int64_t> vTimestamps, std::vector<double> vCumulativeDifficulties)
+{
+    // LWMA-2
+    double T = TARGET_SPACING;
+    double N = DIFFICULTY_WINDOW - 1; //  N=60 in all coins.
+    double FTL = DRIFT; // < 3xT
+    double L = 0;
+    double dSum6ST, dPrevDiff;
+
+    if (vTimestamps.size() < 4) {   return 100;    }
+    else if ( vTimestamps.size() < N+1 ) {     N = vTimestamps.size() - 1;  }
+    else {  vTimestamps.resize(N+1); vCumulativeDifficulties.resize(N+1);  }
+
+    // N is most recently solved block. i must be signed
+    for ( int64_t i = 1; i <= N; i++) {  
+        double ST = std::max(-FTL, std::min(double(vTimestamps[i] - vTimestamps[i-1]), 6*T));
+        L +=  ST * i ; 
+        if ( i > N-6 ) { dSum6ST += ST; }
+    } 
+    if (L < T*N) { L= T*N*10;} // just a sanity limit
+    
+    double dNextDiff = (vCumulativeDifficulties[N] - vCumulativeDifficulties[0])*T*(N+1)*0.991/(L*2);
+
+    // Use modified version of BTC Candy's idea to protect against bad hash attacks
+    dPrevDiff = vCumulativeDifficulties[N] - vCumulativeDifficulties[N-1];
+    if ( dSum6ST < T && dNextDiff < 1.4*dPrevDiff ) {    dNextDiff = 1.4*dPrevDiff;  }
+    if ( dNextDiff < 0.8*dPrevDiff ) { dNextDiff = 0.8*dPrevDiff; }
+
+    // next_Target = sumTargets*L*/0.998/T/(N+1)/N/N; 
+
+    // Prevent unlikely chance a double rounds to different integers on different systems.
+    // Some devs believe this is needed. Many do not. This requires D to be in the range of 1 to 10 T.
+    if ( ceil(dNextDiff + 0.01)  > ceil(dNextDiff)  ) {  dNextDiff=ceil(dNextDiff + 0.03);  }
+
+    return static_cast<uint64_t>(dNextDiff);
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)

@@ -25,11 +25,11 @@ static const int64_t DARKSEND_POOL_MAX = (4999.99*COIN);
 
 static const int64_t STATIC_POS_REWARD = 1 * COIN; //Constant reward of 3.4 IC per block has been ignored
 static const int64_t TARGET_SPACING = 2 * 60; // 2 min per Block
+static const int64_t DIFFICULTY_WINDOW = 60 + 1; // N = 60 for LWMA-2
 //static const int64_t TARGET_SPACING2 = 53; // 53 sec per Block
 //static const int64_t STAKE_TIMESPAN_SWITCH_TIME = 1508858115;
 //static const int64_t STAKE_TIMESPAN_SWITCH_TIME1 = 1509555600; //1 Nov 2017 17:00:00 GMT
 //static const int64_t FORK_TIME = 1510059600;  //November 7, 2017 1:00:00 PM GMT
-
 
 #define INSTANTX_SIGNATURES_REQUIRED           10
 #define INSTANTX_SIGNATURES_TOTAL              15
@@ -71,14 +71,14 @@ inline bool MoneyRange(int64_t nValue) { return (nValue >= 0 && nValue <= MAX_MO
 /** Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp. */
 static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
 
-static const int64_t DRIFT = 120;
+static const int64_t DRIFT = 3 * TARGET_SPACING; // Recommended for LWMA
 inline int64_t FutureDrift(int64_t nTime) { return nTime + DRIFT; }
 
 /** "reject" message codes **/
 static const unsigned char REJECT_INVALID = 0x10;
 
 /* Livenet hard forks */
-static const int nForkOne = 417000;
+static const int nForkOne = 5;
 
 /* Testnet hard forks */
 static const int nTestnetForkOne = 5;
@@ -158,6 +158,9 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles);
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake);
+double GetNextDifficulty(std::vector<std::int64_t> vTimestamps, std::vector<double> VCumulativeDifficulties);
+double TargetToDifficulty(unsigned int nBits);
+unsigned int DifficultyToTarget(double dDiff, CBigNum bnTargetLimit);
 int64_t GetProofOfWorkReward(int nHeight, int64_t nFees);
 int64_t GetProofOfStakeReward(int nHeight, int64_t nCoinAge, int64_t nFees);
 bool IsInitialBlockDownload();
