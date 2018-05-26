@@ -160,7 +160,7 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake);
 double GetNextDifficulty(std::vector<std::int64_t> vTimestamps, std::vector<double> VCumulativeDifficulties);
 double TargetToDifficulty(unsigned int nBits);
-unsigned int DifficultyToTarget(double dDiff, CBigNum bnTargetLimit);
+unsigned int DifficultyToTarget(double dDiff);
 int64_t GetProofOfWorkReward(int nHeight, int64_t nFees);
 int64_t GetProofOfStakeReward(int nHeight, int64_t nCoinAge, int64_t nFees);
 bool IsInitialBlockDownload();

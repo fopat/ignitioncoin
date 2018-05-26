@@ -1433,11 +1433,14 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
 
 double TargetToDifficulty(unsigned int nBits)
 {
+    // First byte: number of bytes in target
+    // Bytes 2-4: target prefix
     int nShift = (nBits >> 24) & 0xff;
 
     double dDiff =
         (double)0x0000ffff / (double)(nBits & 0x00ffffff);
 
+    // 3 target prefix bytes + 29 filler bytes = 32 bytes target
     while (nShift < 29)
     {
         dDiff *= 256.0;
@@ -1452,9 +1455,26 @@ double TargetToDifficulty(unsigned int nBits)
     return dDiff;
 }
 
-unsigned int DifficultyToTarget(double dDiff, CBigNum bnTargetLimit)
+unsigned int DifficultyToTarget(double dDiff)
 {
-    return 0; // TODO-JR
+    double dTarget = (double)0x0000ffff / dDiff;
+
+    int nShift = 32;
+    while (dTarget <= (double)0x0000ffff)
+    {
+        dTarget *= 256.0;
+        nShift--;
+    }
+    while (dTarget >= (double)0x00ffffff)
+    {
+        dTarget /= 256.0;
+        nShift++;
+    }
+
+    unsigned int nBits = (unsigned int)round(dTarget) & 0x00ffffff;
+    nBits += (nShift << 24) & 0xff000000;
+
+    return nBits;
 }
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
@@ -1522,26 +1542,37 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
         const CBlockIndex* pindex = pindexLast;
         for ( int64_t i = 0; i < DIFFICULTY_WINDOW; i++)
         {  
-            // Difficulty reset: only accept blocks after the fork
-            if(pindex == NULL ||
-                (fTestNet && (pindex->nHeight <= nTestnetForkOne)) ||
-                (!fTestNet && (pindex->nHeight <= nForkOne)))
+            // Beginning of the chain
+            if (pindex == NULL) break;
+
+            if (!fProofOfStake)
             {
-                if (pindex == NULL) LogPrintf("BREAK\n");
-                else LogPrintf("BREAK at block %d", pindex->nHeight);
-                break;
+                // PoW difficulty reset: only accept blocks after the fork
+                if( (fTestNet && (pindex->nHeight <= nTestnetForkOne)) ||
+                    (!fTestNet && (pindex->nHeight <= nForkOne)))
+                {
+                    LogPrintf("BREAK at block %d", pindex->nHeight);
+                    // Remove the last timestamp and difficulty to discard the first block after the fork
+                    vTimestamps.pop_back();
+                    vCumulativeDifficulties.pop_back();
+                    break;
+                }
             }
 
             vTimestamps.push_back(pindex->GetBlockTime());
             vCumulativeDifficulties.push_back(TargetToDifficulty(pindex->nBits));
-            LogPrintf("Block %d - Timestamp: %ld, Diff: %f\n", pindex->nHeight, pindex->GetBlockTime(), TargetToDifficulty(pindex->nBits));
+            LogPrintf("Block %d - Timestamp: %ld, Target: %08x,  Diff: %f\n", pindex->nHeight, pindex->GetBlockTime(), pindex->nBits, TargetToDifficulty(pindex->nBits));
 
             pindex = GetLastBlockIndex(pindex, fProofOfStake);
         }
 
+        // Reverse the vectors to have the correct order (earliest blocks first)
+        std::reverse(vTimestamps.begin(), vTimestamps.end());
+        std::reverse(vCumulativeDifficulties.begin(), vCumulativeDifficulties.end());
+
         // Get the next difficulty and convert it to a target
         double dNextDiff = GetNextDifficulty(vTimestamps, vCumulativeDifficulties);
-        nNextTarget = DifficultyToTarget(dNextDiff, bnTargetLimit);
+        nNextTarget = DifficultyToTarget(dNextDiff);
 
         LogPrintf("New algo: %08x\n", nNextTarget);
     }
