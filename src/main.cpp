@@ -1455,11 +1455,15 @@ double TargetToDifficulty(unsigned int nBits)
     return dDiff;
 }
 
-unsigned int DifficultyToTarget(double dDiff)
+CBigNum DifficultyToTarget(double dDiff)
 {
+    CBigNum bnTarget;
+
+    if (dDiff == 0) return bnTarget; // Safety
     double dTarget = (double)0x0000ffff / dDiff;
 
-    int nShift = 32;
+    // 3 target prefix bytes + 29 filler bytes = 32 bytes target
+    int nShift = 29;
     while (dTarget <= (double)0x0000ffff)
     {
         dTarget *= 256.0;
@@ -1469,21 +1473,25 @@ unsigned int DifficultyToTarget(double dDiff)
     {
         dTarget /= 256.0;
         nShift++;
-    }
+    }    
 
     unsigned int nBits = (unsigned int)round(dTarget) & 0x00ffffff;
+    while ((nBits & 0xff) == 0 && nBits > 0)
+    {
+        nBits = nBits >> 8;
+        nShift++;
+    }
+
     nBits += (nShift << 24) & 0xff000000;
 
-    return nBits;
+    bnTarget.SetCompact(nBits);
+    return bnTarget;
 }
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
-    unsigned int nNextTarget;
     CBigNum bnNew;
     CBigNum bnTargetLimit = fProofOfStake ? GetProofOfStakeLimit(pindexLast->nHeight) : Params().ProofOfWorkLimit();
-
-    LogPrintf("****** GetNextTargetRequired - START\n");
 
     /* The genesis block */
     if(pindexLast == NULL) return bnTargetLimit.GetCompact();
@@ -1495,7 +1503,6 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     if(pindexPrevPrev->pprev == NULL) return bnTargetLimit.GetCompact();
     /* The next block */
     int nHeight = pindexLast->nHeight + 1;
-    LogPrintf("Block height: %d\n", nHeight);
 
     if((fTestNet && (nHeight <= nTestnetForkOne)) ||
       (!fTestNet && (nHeight <= nForkOne)))
@@ -1525,17 +1532,13 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
         int64_t nInterval = nTargetTimespan / nTargetTemp;
         bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
         bnNew /= ((nInterval + 1) * nTargetTemp);
-
-        if (bnNew <= 0 || bnNew > bnTargetLimit)
-            bnNew = bnTargetLimit;
-
-        nNextTarget = bnNew.GetCompact();
-        LogPrintf("Legacy algo: %08x\n", nNextTarget);
     }
     else
     {
         // New algo: LWMA-2
+        LogPrintf("**** LWMA-2 ****\n");
         std::vector<int64_t> vTimestamps; 
+        std::vector<double> vDifficulties;
         std::vector<double> vCumulativeDifficulties;
 
         // Get the N previous timestamps and difficulties
@@ -1545,78 +1548,136 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
             // Beginning of the chain
             if (pindex == NULL) break;
 
-            if (!fProofOfStake)
-            {
-                // PoW difficulty reset: only accept blocks after the fork
-                if( (fTestNet && (pindex->nHeight <= nTestnetForkOne)) ||
-                    (!fTestNet && (pindex->nHeight <= nForkOne)))
-                {
-                    LogPrintf("BREAK at block %d", pindex->nHeight);
-                    // Remove the last timestamp and difficulty to discard the first block after the fork
-                    vTimestamps.pop_back();
-                    vCumulativeDifficulties.pop_back();
-                    break;
-                }
-            }
+            // PoW difficulty reset: only accept blocks after the fork
+            //---- ONLY NEED IN CASE OF POW ALGO CHANGE ----
+            // if (!fProofOfStake)
+            // {
+            //     if( (fTestNet && (pindex->nHeight <= nTestnetForkOne)) ||
+            //         (!fTestNet && (pindex->nHeight <= nForkOne)))
+            //     {
+            //         LogPrintf("BREAK at block %d\n", pindex->nHeight);
+            //         // Remove the last timestamp and difficulty to discard the first block after the fork
+            //         if (vTimestamps.size() > 0)
+            //         {
+            //             vTimestamps.pop_back();
+            //             vDifficulties.pop_back();
+            //         }
+            //         break;
+            //     }
+            // }
+
+            double dDiff = TargetToDifficulty(pindex->nBits);
+            // **** CHECK - BEGIN ****
+            // TO BE REMOVED IN THE FINAL VERSION
+            CBigNum bnTarget = DifficultyToTarget(dDiff);
+            unsigned int nBits = bnTarget.GetCompact();
+            LogPrintf("nBits: %08x - Diff: %f - nBits2: %08x\n", pindex->nBits, dDiff, nBits);
+            if (nBits != pindex->nBits) LogPrintf("ERROR!\n");
+            // **** CHECK - END ****
 
             vTimestamps.push_back(pindex->GetBlockTime());
-            vCumulativeDifficulties.push_back(TargetToDifficulty(pindex->nBits));
-            LogPrintf("Block %d - Timestamp: %ld, Target: %08x,  Diff: %f\n", pindex->nHeight, pindex->GetBlockTime(), pindex->nBits, TargetToDifficulty(pindex->nBits));
+            vDifficulties.push_back(dDiff);
+            LogPrintf("Block %d - Timestamp: %ld, Target: %08x,  Diff: %f\n", pindex->nHeight, pindex->GetBlockTime(), pindex->nBits, dDiff);
 
-            pindex = GetLastBlockIndex(pindex, fProofOfStake);
+            pindex = GetLastBlockIndex(pindex->pprev, fProofOfStake);
         }
-
-        // Reverse the vectors to have the correct order (earliest blocks first)
-        std::reverse(vTimestamps.begin(), vTimestamps.end());
-        std::reverse(vCumulativeDifficulties.begin(), vCumulativeDifficulties.end());
+        
+        if (vTimestamps.size() > 0)
+        {
+            // Reverse the vector to have the correct order (earliest blocks first)
+            std::reverse(vTimestamps.begin(), vTimestamps.end());
+            // Calculate the cumulative difficulties
+            double dCumulativeDiff = 0;
+            //for(std::vector<double>::reverse_iterator rit = vDifficulties.rbegin(); rit != vDifficulties.rend(); ++rit)
+            for (int i = vDifficulties.size() - 1; i >= 0; --i)
+            {
+                dCumulativeDiff += vDifficulties[i];
+                vCumulativeDifficulties.push_back(dCumulativeDiff);
+            }
+        }
 
         // Get the next difficulty and convert it to a target
         double dNextDiff = GetNextDifficulty(vTimestamps, vCumulativeDifficulties);
-        nNextTarget = DifficultyToTarget(dNextDiff);
-
-        LogPrintf("New algo: %08x\n", nNextTarget);
+        LogPrintf("Next difficulty: %f\n", dNextDiff);
+        bnNew = DifficultyToTarget(dNextDiff);
     }
 
-    LogPrintf("****** GetNextTargetRequired - END\n");
+    if (bnNew <= 0 || bnNew > bnTargetLimit)
+        bnNew = bnTargetLimit;
 
-    return nNextTarget;
+    LogPrintf("**** GetNextTargetRequired - Chain: %s - Height: %d - Result: %08x\n", (fProofOfStake ? "PoS" : "PoW"), nHeight, bnNew.GetCompact());
+
+    return bnNew.GetCompact();
 }
 
 double GetNextDifficulty(std::vector<int64_t> vTimestamps, std::vector<double> vCumulativeDifficulties)
 {
     // LWMA-2
-    double T = TARGET_SPACING;
-    double N = DIFFICULTY_WINDOW - 1; //  N=60 in all coins.
+    double T = TARGET_SPACING; // target solvetime seconds
+    double N = DIFFICULTY_WINDOW - 1; //  N=45, 60, and 90 for T=600, 120, 60.
     double FTL = DRIFT; // < 3xT
-    double L = 0;
-    double dSum6ST, dPrevDiff;
 
-    if (vTimestamps.size() < 4) {   return 100;    }
-    else if ( vTimestamps.size() < N+1 ) {     N = vTimestamps.size() - 1;  }
-    else {  vTimestamps.resize(N+1); vCumulativeDifficulties.resize(N+1);  }
+    // "Certified LWMA-2" SHA256 begins with "911"
+    double L(0), sum_6_ST(0), sum_9_ST(0), ST, next_D, prev_D, SMAn, SMAd;
+
+    // If expecting a 10x decrease or 1000x increase in D after a fork, consider: 
+    // if ( height >= fork_height && height < fork_height+62 )  { return uint64_t difficulty_guess; }
+
+    // TS and CD vectors should be size 61 after startup.
+    if ( vTimestamps.size() > N  ) { vTimestamps.resize(N+1); vCumulativeDifficulties.resize(N+1);  }
+    else if (vTimestamps.size() < 4)  {  return 100;  } // start up
+    else  {  N = vTimestamps.size() - 1;  } // start up
 
     // N is most recently solved block. i must be signed
     for ( int64_t i = 1; i <= N; i++) {  
-        double ST = std::max(-FTL, std::min(double(vTimestamps[i] - vTimestamps[i-1]), 6*T));
-        L +=  ST * i ; 
-        if ( i > N-6 ) { dSum6ST += ST; }
-    } 
-    if (L < T*N) { L= T*N*10;} // just a sanity limit
-    
-    double dNextDiff = (vCumulativeDifficulties[N] - vCumulativeDifficulties[0])*T*(N+1)*0.991/(L*2);
+        // +/- FTL limits are bad timestamp protection.  6xT limits drop in D to reduce oscillations.
+        ST = std::max(-FTL, std::min(double(vTimestamps[i] - vTimestamps[i-1]), 6*T));
+        L +=  ST * i ; // Give more weight to most recent blocks.
+        // Do these inside loop to capture -FTL and +6*T limitations.
+        if ( i > N-6 ) { sum_6_ST += ST; }      
+        if ( i > N-9 ) { sum_9_ST += ST; }     
+    }
+    if (L < T*N) { L= T*N*6; } // sanity limit. Accidentally limits D rise at startup for ~60 blocks.
 
-    // Use modified version of BTC Candy's idea to protect against bad hash attacks
-    dPrevDiff = vCumulativeDifficulties[N] - vCumulativeDifficulties[N-1];
-    if ( dSum6ST < T && dNextDiff < 1.4*dPrevDiff ) {    dNextDiff = 1.4*dPrevDiff;  }
-    if ( dNextDiff < 0.8*dPrevDiff ) { dNextDiff = 0.8*dPrevDiff; }
+    // Calculate next_D = avgD * T / LWMA(STs) 
+    next_D = (vCumulativeDifficulties[N] - vCumulativeDifficulties[0]) * T*(N+1)*0.991 / (L*2);
 
-    // next_Target = sumTargets*L*/0.998/T/(N+1)/N/N; 
+    // LWMA-2 change from LWMA
+    // Trigger sudden increase in D if hash attack is detected. Also limit rate of fall in D.
+    // ====  begin LWMA-2 trigger and fall limitations  ====
 
-    // Prevent unlikely chance a double rounds to different integers on different systems.
-    // Some devs believe this is needed. Many do not. This requires D to be in the range of 1 to 10 T.
-    if ( ceil(dNextDiff + 0.01)  > ceil(dNextDiff)  ) {  dNextDiff=ceil(dNextDiff + 0.03);  }
+    prev_D = vCumulativeDifficulties[N] - vCumulativeDifficulties[N-1];
 
-    return static_cast<uint64_t>(dNextDiff);
+    // Use Digishield-type tempered SMA to get long-term (~4*N) avg D to limit how high 
+    // consecutive triggers can send D.
+    SMAn = (vCumulativeDifficulties[N] - vCumulativeDifficulties[0]) * 4 *T;
+    SMAd = 3*N*T + double( vTimestamps[N] - vTimestamps[0] ); 
+
+    // If a trigger would send D>1.7*avgD, then don't do it.
+    // 1.70 allows 30% increase for 2 consecutive blocks and 14% for 4 blocks.
+    // Tempered SMA = SMAn / SMAd, but do not divide for round off protection
+
+    if  ( 1.14*next_D*SMAd > 1.50*SMAn ) {  
+        if ( next_D < 0.7*prev_D ) { next_D = 0.7*prev_D; }
+    }
+    else if  ( 1.3*next_D*SMAd < 1.70*SMAn && sum_6_ST < 1.2*T)   {
+        next_D = 1.3*prev_D; 
+    }
+    else if (sum_9_ST < 3.4*T )   {  next_D = 1.14*prev_D;  }
+    // Prevent D falling too much after triggers, as long as D is not > 1.7*avgD
+    else if  ( next_D < 0.9*prev_D )  { next_D = 0.9*prev_D;  }
+
+    // ==== end LWMA-2's trigger and fall limitations ====
+
+    // Prevent round off difference between systems to prevent chain split.
+    // Theoretically not needed by C++ standard.  Requires D > 1. Needs 1E12 > D > 100.
+
+    // TODO: enable this again if difficulty > 1
+    //if ( ceil(next_D + 0.01) > ceil(next_D) ) { next_D = ceil(next_D + 0.03);  }
+
+    // next_Target = sumTargets*L*2/0.998/T/(N+1)/N/N; // To show the difference.
+
+    return next_D;
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
