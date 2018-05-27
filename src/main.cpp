@@ -1535,7 +1535,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     else
     {
         // New algo: LWMA-2
-        std::vector<std::int64_t> vTimestamps; 
+        std::vector<int64_t> vTimestamps; 
         std::vector<double> vCumulativeDifficulties;
 
         // Get the N previous timestamps and difficulties
