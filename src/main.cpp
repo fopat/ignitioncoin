@@ -1582,7 +1582,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     return nNextTarget;
 }
 
-double GetNextDifficulty(std::vector<std::int64_t> vTimestamps, std::vector<double> vCumulativeDifficulties)
+double GetNextDifficulty(std::vector<int64_t> vTimestamps, std::vector<double> vCumulativeDifficulties)
 {
     // LWMA-2
     double T = TARGET_SPACING;

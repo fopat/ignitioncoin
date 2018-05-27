@@ -158,7 +158,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles);
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake);
-double GetNextDifficulty(std::vector<std::int64_t> vTimestamps, std::vector<double> VCumulativeDifficulties);
+double GetNextDifficulty(std::vector<int64_t> vTimestamps, std::vector<double> VCumulativeDifficulties);
 double TargetToDifficulty(unsigned int nBits);
 unsigned int DifficultyToTarget(double dDiff);
 int64_t GetProofOfWorkReward(int nHeight, int64_t nFees);
