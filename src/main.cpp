@@ -1616,8 +1616,6 @@ double GetNextDifficulty(std::vector<int64_t> vTimestamps, std::vector<double> v
     double T = TARGET_SPACING; // target solvetime seconds
     double N = DIFFICULTY_WINDOW - 1; //  N=45, 60, and 90 for T=600, 120, 60.
     double FTL = DRIFT; // < 3xT
-
-    // "Certified LWMA-2" SHA256 begins with "911"
     double L(0), sum_6_ST(0), sum_9_ST(0), ST, next_D, prev_D, SMAn, SMAd;
 
     // If expecting a 10x decrease or 1000x increase in D after a fork, consider: 
@@ -1672,8 +1670,10 @@ double GetNextDifficulty(std::vector<int64_t> vTimestamps, std::vector<double> v
     // Prevent round off difference between systems to prevent chain split.
     // Theoretically not needed by C++ standard.  Requires D > 1. Needs 1E12 > D > 100.
 
-    // TODO: enable this again if difficulty > 1
-    //if ( ceil(next_D + 0.01) > ceil(next_D) ) { next_D = ceil(next_D + 0.03);  }
+    if (next_D > 1.0)
+    {
+        if ( ceil(next_D + 0.01) > ceil(next_D) ) { next_D = ceil(next_D + 0.03);  }
+    }
 
     // next_Target = sumTargets*L*2/0.998/T/(N+1)/N/N; // To show the difference.
 
