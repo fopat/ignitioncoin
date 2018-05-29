@@ -2544,7 +2544,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 
             CBlockIndex *pindex = pindexBest;
             if(IsProofOfStake() && pindex != NULL){
-                if(pindex->GetBlockHash() == hashPrevBlock){
+                if(pindex->GetBlockHash() == hashPrevBlock) {
                     // If we don't already have its previous block, skip masternode payment step
                     CAmount masternodePaymentAmount;
                     for (int i = vtx[1].vout.size(); i--> 0; ) {
@@ -2563,7 +2563,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                     int payeerewardpercent = 0;
                     bool hasPayment = true;
 
-                    if(!masternodePayments.GetBlockPayee(pindexBest->nHeight+1, payee, vin)){
+                    if(!masternodePayments.GetBlockPayee(pindexBest->nHeight+1, payee, vin)) {
                         CMasternode* winningNode = mnodeman.GetCurrentMasterNode(1);
                         if (winningNode) {
                             payee = GetScriptForDestination(winningNode->pubkey.GetID());
