@@ -1433,49 +1433,128 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
-	unsigned int nTargetTemp = TARGET_SPACING;
-	// if (pindexLast->nTime > FORK_TIME)
-	// 	nTargetTemp = TARGET_SPACING2;
-  nTargetTemp = TARGET_SPACING;
-
-	// if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME)
-	// nTargetTimespan = 2 * 60; // 2 minutes
-  //
-	// if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME1)
-	// nTargetTimespan = 10 * 60; // 10 minutes
-    nTargetTimespan = 10 * 60; // 10 minutes
-
+    CBigNum bnNew;
     CBigNum bnTargetLimit = fProofOfStake ? GetProofOfStakeLimit(pindexLast->nHeight) : Params().ProofOfWorkLimit();
 
-    if (pindexLast == NULL)
-        return bnTargetLimit.GetCompact(); // genesis block
-
-
+    /* The genesis block */
+    if(pindexLast == NULL) return bnTargetLimit.GetCompact();
     const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
-    if (pindexPrev->pprev == NULL)
-        return bnTargetLimit.GetCompact(); // first block
+    /* The 1st block */
+    if(pindexPrev->pprev == NULL) return bnTargetLimit.GetCompact();
     const CBlockIndex* pindexPrevPrev = GetLastBlockIndex(pindexPrev->pprev, fProofOfStake);
-    if (pindexPrevPrev->pprev == NULL)
-        return bnTargetLimit.GetCompact(); // second block
+    /* The 2nd block */
+    if(pindexPrevPrev->pprev == NULL) return bnTargetLimit.GetCompact();
+    /* The next block */
+    int nHeight = pindexLast->nHeight + 1;
 
-    int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+    if((fTestNet && (nHeight <= nTestnetForkOne)) ||
+      (!fTestNet && (nHeight <= nForkOne)))
+    {
+        // Legacy algo
+        unsigned int nTargetTemp = TARGET_SPACING;
+        // if (pindexLast->nTime > FORK_TIME)
+        // 	nTargetTemp = TARGET_SPACING2;
+        nTargetTemp = TARGET_SPACING;
 
-    if (nActualSpacing < 0){
-        nActualSpacing = nTargetTemp;
+        // if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME)
+        // nTargetTimespan = 2 * 60; // 2 minutes
+        //
+        // if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME1)
+        // nTargetTimespan = 10 * 60; // 10 minutes
+        nTargetTimespan = 10 * 60; // 10 minutes
+
+        int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+
+        if (nActualSpacing < 0){
+            nActualSpacing = nTargetTemp;
+        }
+
+        // ppcoin: target change every block
+        // ppcoin: retarget with exponential moving toward target spacing
+        bnNew.SetCompact(pindexPrev->nBits);
+        int64_t nInterval = nTargetTimespan / nTargetTemp;
+        bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
+        bnNew /= ((nInterval + 1) * nTargetTemp);
     }
+    else
+    {
+        // New algo: Digishield v3 + Zawy's changes
+        LogPrintf("**** Digishield v3 ****\n");
 
-    // ppcoin: target change every block
-    // ppcoin: retarget with exponential moving toward target spacing
-    CBigNum bnNew;
-    bnNew.SetCompact(pindexPrev->nBits);
-    int64_t nInterval = nTargetTimespan / nTargetTemp;
-    bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
-    bnNew /= ((nInterval + 1) * nTargetTemp);
+        // Get the N previous timestamps and difficulties
+        const CBlockIndex* pindexFirst = pindexLast;
+        CBigNum bnTot(0);
+        for ( int64_t i = 0; i < Params().DiffAveragingWindow(); i++)
+        {  
+            // Genesis block
+            if (pindexFirst == NULL) break;
+
+            // PoW difficulty reset: only accept blocks after the fork
+            //---- ONLY NEED IN CASE OF POW ALGO CHANGE ----
+            // if (!fProofOfStake)
+            // {
+            //     if( (fTestNet && (pindexFirst->nHeight <= nTestnetForkOne)) ||
+            //         (!fTestNet && (pindexFirst->nHeight <= nForkOne)))
+            //     {
+            //         break;
+            //     }
+            // }
+
+            LogPrintf("Block %d - Timestamp: %ld, Target: %08x\n", pindexFirst->nHeight, pindexFirst->GetBlockTime(), pindexFirst->nBits);
+
+            // Add target to total
+            CBigNum bnTmp;
+            bnTmp.SetCompact(pindexFirst->nBits);
+            bnTot += bnTmp;
+
+            // Get previous block
+            pindexFirst = GetLastBlockIndex(pindexFirst->pprev, fProofOfStake);
+        }
+        
+        // Check we have enough blocks
+        if (pindexFirst == NULL)
+        {
+            bnNew = bnTargetLimit;
+        }
+        else
+        {
+            CBigNum bnAvg(bnTot / Params().DiffAveragingWindow());
+            bnNew = CalculateNextWorkRequired(bnAvg, pindexLast->GetMedianTimePast(), pindexFirst->GetMedianTimePast());
+        }
+    }
 
     if (bnNew <= 0 || bnNew > bnTargetLimit)
         bnNew = bnTargetLimit;
 
     return bnNew.GetCompact();
+}
+
+CBigNum CalculateNextWorkRequired(CBigNum bnAvg, int64_t nLastBlockTime, int64_t nFirstBlockTime)
+{
+    // Limit adjustment step
+    // Use medians to prevent time-warp attacks
+    int64_t nActualTimespan = nLastBlockTime - nFirstBlockTime;
+    LogPrintf("nActualTimespan = %d  before dampening\n", nActualTimespan);
+    nActualTimespan = Params().DiffAveragingWindowTimespan() + (nActualTimespan - Params().DiffAveragingWindowTimespan())/4;
+    LogPrintf("nActualTimespan = %d  before bounds\n", nActualTimespan);
+
+    if (nActualTimespan < Params().DiffMinActualTimespan())
+        nActualTimespan = Params().DiffMinActualTimespan();
+    if (nActualTimespan > Params().DiffMaxActualTimespan())
+        nActualTimespan = Params().DiffMaxActualTimespan();
+
+    // Retarget
+    CBigNum bnNew(bnAvg);
+    bnNew /= Params().DiffAveragingWindowTimespan();
+    bnNew *= nActualTimespan;
+
+    /// debug print
+    LogPrintf("GetNextWorkRequired RETARGET\n");
+    LogPrintf("Params().DiffAveragingWindowTimespan() = %d    nActualTimespan = %d\n", Params().DiffAveragingWindowTimespan(), nActualTimespan);
+    LogPrintf("Current average: %08x  %s\n", bnAvg.GetCompact(), bnAvg.ToString());
+    LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.ToString());
+
+    return bnNew;
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)

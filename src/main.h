@@ -78,10 +78,10 @@ inline int64_t FutureDrift(int64_t nTime) { return nTime + DRIFT; }
 static const unsigned char REJECT_INVALID = 0x10;
 
 /* Livenet hard forks */ 
-static const int nForkOne = 50; 
+static const int nForkOne = 10; 
  
 /* Testnet hard forks */ 
-static const int nTestnetForkOne = 50; 
+static const int nTestnetForkOne = 10; 
 
 inline int64_t GetMNCollateral(int nHeight) { return 3000; }
 
@@ -158,6 +158,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles);
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake);
+CBigNum CalculateNextWorkRequired(CBigNum bnAvg, int64_t nLastBlockTime, int64_t nFirstBlockTime);
 int64_t GetProofOfWorkReward(int nHeight, int64_t nFees);
 int64_t GetProofOfStakeReward(int nHeight, int64_t nCoinAge, int64_t nFees);
 bool IsInitialBlockDownload();
