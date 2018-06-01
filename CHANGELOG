@@ -1,3 +1,9 @@
+v1.0.1.0 -- *MANDATORY UPDATE*
+--------
+Upgraded the Difficulty Retarget Algorithm (that sets difficulty for pow and pos miners when changes in hashrate/weight occur) to OSS - Orbitcoin Super Shield Algo
+Modified the pow hash algorithm to Neoscrypt - Miners must use GPU/CPU to mine now (until ASIC for Neoscrypt exists)
+Fixed an issue with masternodes 
+
 v1.0.0.3
 --------
 Ignitiond binary will now compile out to ignitiond (lower case)
