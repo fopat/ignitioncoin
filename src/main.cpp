@@ -2557,8 +2557,9 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 
                     CScript payee;
                     CTxIn vin;
-                    
-                    if(pindexBest->nHeight+1 < nForkOne) {
+              
+                    if((fTestNet && (pindexBest->nHeight+1 < nTestnetForkOne)) || 
+                        (!fTestNet && (pindexBest->nHeight+1 < nForkOne))) {
                         if(!masternodePayments.GetBlockPayee(pindexBest->nHeight+1, payee, vin) || payee == CScript()){
                             foundPayee = true; //doesn't require a specific payee
                             foundPaymentAmount = true;

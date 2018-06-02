@@ -136,7 +136,7 @@ Value masternode(const Array& params, bool fHelp)
     if (fHelp  ||
         (strCommand != "count" && strCommand != "current" && strCommand != "debug" && strCommand != "genkey" && strCommand != "enforce" && strCommand != "list" && strCommand != "list-conf"
         	&& strCommand != "start" && strCommand != "start-alias" && strCommand != "start-many" && strCommand != "status" && strCommand != "stop" && strCommand != "stop-alias"
-                && strCommand != "stop-many" /*&& strCommand != "winners"*/ && strCommand != "connect" && strCommand != "outputs" && strCommand != "vote-many" && strCommand != "vote"))
+                && strCommand != "stop-many" && strCommand != "winners" && strCommand != "connect" && strCommand != "outputs" && strCommand != "vote-many" && strCommand != "vote"))
         throw runtime_error(
                 "masternode \"command\"... ( \"passphrase\" )\n"
                 "Set of commands to execute masternode related actions\n"
@@ -159,7 +159,7 @@ Value masternode(const Array& params, bool fHelp)
                 "  stop         - Stop masternode configured in Ignition.conf\n"
                 "  stop-alias   - Stop single masternode by assigned alias configured in masternode.conf\n"
                 "  stop-many    - Stop all masternodes configured in masternode.conf\n"
-                //"  winners      - Print list of masternode winners\n"
+                "  winners      - Print list of masternode winners\n"
                 "  vote-many    - Vote on a Ignition initiative\n"
                 "  vote         - Vote on a Ignition initiative\n"
                 );
@@ -530,36 +530,36 @@ Value masternode(const Array& params, bool fHelp)
         return CIgnitioncoinSecret(secret).ToString();
     }
 
-    // if (strCommand == "winners")
-    // {
-    //     Object obj;
-    //     std::string strMode = "addr";
-    //
-    //     if (params.size() >= 1) strMode = params[0].get_str();
-    //     obj.push_back(Pair("mode: ", strMode));
-    //
-    //     for(int nHeight = pindexBest->nHeight-10; nHeight < pindexBest->nHeight+20; nHeight++)
-    //     {
-    //         CScript payee;
-    //         CTxIn vin;
-    //         if(masternodePayments.GetBlockPayee(nHeight, payee, vin)){
-    //             CTxDestination address1;
-    //             ExtractDestination(payee, address1);
-    //             CIgnitioncoinAddress address2(address1);
-    //
-    //             if(strMode == "addr")
-    //                 obj.push_back(Pair(boost::lexical_cast<std::string>(nHeight),       address2.ToString().c_str()));
-    //
-    //             if(strMode == "vin")
-    //                 obj.push_back(Pair(boost::lexical_cast<std::string>(nHeight),       vin.ToString().c_str()));
-    //
-    //         } else {
-    //             obj.push_back(Pair(boost::lexical_cast<std::string>(nHeight),       ""));
-    //         }
-    //     }
-    //
-    //     return obj;
-    // }
+    if (strCommand == "winners")
+    {
+        Object obj;
+        std::string strMode = "addr";
+    
+        if (params.size() >= 1) strMode = params[0].get_str();
+        obj.push_back(Pair("mode: ", strMode));
+    
+        for(int nHeight = pindexBest->nHeight-10; nHeight < pindexBest->nHeight+20; nHeight++)
+        {
+            CScript payee;
+            CTxIn vin;
+            if(masternodePayments.GetBlockPayee(nHeight, payee, vin)){
+                CTxDestination address1;
+                ExtractDestination(payee, address1);
+                CIgnitioncoinAddress address2(address1);
+    
+                if(strMode == "addr")
+                    obj.push_back(Pair(boost::lexical_cast<std::string>(nHeight),       address2.ToString().c_str()));
+    
+                if(strMode == "vin")
+                    obj.push_back(Pair(boost::lexical_cast<std::string>(nHeight),       vin.ToString().c_str()));
+    
+            } else {
+                obj.push_back(Pair(boost::lexical_cast<std::string>(nHeight),       ""));
+            }
+        }
+    
+        return obj;
+    }
 
     if(strCommand == "enforce")
     {
