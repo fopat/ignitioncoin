@@ -390,7 +390,4 @@ void MasternodeManager::copyPubkey()
     }
     
     QApplication::clipboard()->setText(QString::fromStdString(sData));
-}void MasternodeManager::on_openMNConfigfileButton_clicked()
-{
-    GUIUtil::openMNConfigfile();
 }
