@@ -27,7 +27,3 @@ strip ~/ignitioncoin/ignitiond
 sudo cp ~/ignitioncoin/bin/ignitiond ~/
 sudo rm -rf ignitioncoin
 echo 'LD_LIBRARY_PATH=/usr/local/lib && export LD_LIBRARY_PATH' > ~/.bash_aliases
-#source ~/.bashrc
-#wget https://raw.githubusercontent.com/ludoloops/Simplicity/master/config_wallet.sh
-#chmod +x config_wallet.sh
-#bash config_wallet.sh
