@@ -887,89 +887,75 @@ return;
     }
 }
 
+void IdleNodeCheck(CNode *pnode)
+{
+    // Disconnect node/peer if send/recv data becomes idle
+    if (GetTime() - pnode->nTimeConnected > 60)
+    {
+        if (GetTime() - pnode->nLastRecv > 60)
+        {
+            if (GetTime() - pnode->nLastSend < 60)
+            {
+                LogPrintf("Error: Unexpected idle interruption %s\n", pnode->addrName);
+                    pnode->CloseSocketDisconnect();
+            }
+        }
+    }
+}
+
 // requires LOCK(cs_vSend)
 void SocketSendData(CNode *pnode)
 {
     std::deque<CSerializeData>::iterator it = pnode->vSendMsg.begin();
 
-    while (it != pnode->vSendMsg.end()) {
+    while (it != pnode->vSendMsg.end())
+    {
         const CSerializeData &data = *it;
         assert(data.size() > pnode->nSendOffset);
         int nBytes = send(pnode->hSocket, &data[pnode->nSendOffset], data.size() - pnode->nSendOffset, MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (nBytes > 0) {
+        if (nBytes > 0)
+        {
             pnode->nLastSend = GetTime();
             pnode->nSendBytes += nBytes;
             pnode->nSendOffset += nBytes;
             pnode->RecordBytesSent(nBytes);
-            if (pnode->nSendOffset == data.size()) {
+            if (pnode->nSendOffset == data.size())
+            {
                 pnode->nSendOffset = 0;
                 pnode->nSendSize -= data.size();
                 it++;
-            } else {
+            }
+            else
+            {
                 // could not send full message; stop sending more
                 LogPrintf("socket send error: interruption\n");
-
-
-                    // Disconnect node/peer if send/recv data becomes idle
-                    if (GetTime() - pnode->nTimeConnected > 60)
-                    {
-                        if (GetTime() - pnode->nLastRecv > 60)
-                        {
-                            if (GetTime() - pnode->nLastSend < 60)
-                            {
-                                LogPrintf("Error: Unexpected idle interruption %s\n", pnode->addrName);
-                                pnode->CloseSocketDisconnect();
-                            }
-                        }
-                    }
-
-
+                IdleNodeCheck(pnode);
                 break;
             }
-        } else {
-            if (nBytes < 0) {
+        }
+        else
+        {
+            if (nBytes < 0)
+            {
                 // error
                 int nErr = WSAGetLastError();
                 if (nErr != WSAEWOULDBLOCK && nErr != WSAEMSGSIZE && nErr != WSAEINTR && nErr != WSAEINPROGRESS)
                 {
                     LogPrintf("socket send error %d\n", nErr);
-
-                    // Disconnect node/peer if send/recv data becomes idle
-                    if (GetTime() - pnode->nTimeConnected > 90)
-                    {
-                        if (GetTime() - pnode->nLastRecv > 60)
-                        {
-                            if (GetTime() - pnode->nLastSend < 30)
-                            {
-                                LogPrintf("Error: Unexpected idle interruption %s\n", pnode->addrName);
-                                pnode->CloseSocketDisconnect();
-                            }
-                        }
-                    }
-
+                    IdleNodeCheck(pnode);
+                    break;
                 }
             }
+
             // couldn't send anything at all
             LogPrintf("socket send error: data failure\n");
-
-                // Disconnect node/peer if send/recv data becomes idle
-                    if (GetTime() - pnode->nTimeConnected > 90)
-                    {
-                        if (GetTime() - pnode->nLastRecv > 60)
-                        {
-                            if (GetTime() - pnode->nLastSend < 30)
-                            {
-                                LogPrintf("Error: Unexpected idle interruption %s\n", pnode->addrName);
-                                pnode->CloseSocketDisconnect();
-                            }
-                        }
-                    }
-
+            IdleNodeCheck(pnode);
             break;
         }
     }
 
-    if (it == pnode->vSendMsg.end()) {
+    if (it == pnode->vSendMsg.end())
+    {
         assert(pnode->nSendOffset == 0);
         assert(pnode->nSendSize == 0);
     }
