@@ -2589,7 +2589,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                                 payee = GetScriptForDestination(winningNode->pubkey.GetID());
                                 payeerewardaddress = winningNode->rewardAddress;
                                 payeerewardpercent = winningNode->rewardPercentage;
-				LogPrintf("Found winning node with mnodeman, checking data now: ", payee, " - ", payeerewardaddress, " - ", payeerewardpercent);
+				LogPrintf("Found winning node with mnodeman, checking data now: (payee*) - (payeerewardaddr*) - ", payeerewardpercent);
 				
                                 // If reward percent is 0 then send all to masternode address
                                 if (hasPayment && payeerewardpercent == 0) {
@@ -2623,7 +2623,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                                 }
                                 LogPrintf("Detected masternode payment to %s\n", targetNode);
                             } else {
-                                LogPrintf("Found MN Winners List, Matches This Data: Payee - ", payee, " vin - ", vin, "\n");
+                                LogPrintf("Found MN Winners List, Matches This Data: Payee - " vin - ", vin, "\n");
                                 foundPaymentAmount = true;
                                 foundPayee = true;
                                 foundPaymentAndPayee = true;
