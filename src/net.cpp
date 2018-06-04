@@ -731,88 +731,91 @@ int CNetMessage::readData(const char *pch, unsigned int nBytes)
     return nCopy;
 }
 
-
-
 int LastRefreshstamp = 0;
 int RefreshesDone = 0;
 bool FirstCycle = true;
 
 void RefreshRecentConnections(int RefreshMinutes)
 {
-
-if (vNodes.size() >= 8) { return; }
-
-time_t timer;
-int SecondsPassed = 0;
-int MinutesPassed = 0;
-int CurrentTimestamp = time(&timer);
-
-
-if (LastRefreshstamp > 0){
-
-    SecondsPassed = CurrentTimestamp - LastRefreshstamp;
-    MinutesPassed = SecondsPassed / 60;
-
-    if (MinutesPassed > RefreshMinutes - 2) 
+    if (vNodes.size() >= 8)
     {
-        FirstCycle = false;
+        return;
     }
 
-}
-else
-{
-    LastRefreshstamp = CurrentTimestamp;
-return;
-}
+    time_t timer;
+    int SecondsPassed = 0;
+    int MinutesPassed = 0;
+    int CurrentTimestamp = time(&timer);
 
-if (FirstCycle == false)
-{
-    if (MinutesPassed < RefreshMinutes) 
+    if (LastRefreshstamp > 0)
     {
-return;
+        SecondsPassed = CurrentTimestamp - LastRefreshstamp;
+        MinutesPassed = SecondsPassed / 60;
+
+        if (MinutesPassed > RefreshMinutes - 2) 
+        {
+            FirstCycle = false;
+        }
+
     }
     else
     {
-
-        RefreshesDone = RefreshesDone + 1;
-
-        //cout<<"         Last refresh: "<<LastRefreshstamp<<endl;
-        //cout<<"         Minutes ago: "<<MinutesPassed<<endl;
-        //cout<<"         Peer/node refresh cycles: "<<RefreshesDone<<endl;
-
         LastRefreshstamp = CurrentTimestamp;
+        return;
+    }
 
-        // Load addresses for peers.dat
-        int64_t nStart = GetTimeMillis();
+    if (FirstCycle == false)
+    {
+        if (MinutesPassed < RefreshMinutes) 
         {
-            CAddrDB adb;
-            if (!adb.Read(addrman))
-                LogPrintf("Invalid or missing peers.dat; recreating\n");
+            return;
         }
+        else
+        {
+            RefreshesDone = RefreshesDone + 1;
+
+            //cout<<"         Last refresh: "<<LastRefreshstamp<<endl;
+            //cout<<"         Minutes ago: "<<MinutesPassed<<endl;
+            //cout<<"         Peer/node refresh cycles: "<<RefreshesDone<<endl;
+
+            LastRefreshstamp = CurrentTimestamp;
+
+            // Load addresses for peers.dat
+            int64_t nStart = GetTimeMillis();
+            {
+                CAddrDB adb;
+                if (!adb.Read(addrman))
+                    LogPrintf("Invalid or missing peers.dat; recreating\n");
+            }
             
-        LogPrintf("Loaded %i addresses from peers.dat  %dms\n",
-        addrman.size(), GetTimeMillis() - nStart);
+            LogPrintf("Loaded %i addresses from peers.dat  %dms\n",
+            addrman.size(), GetTimeMillis() - nStart);
 
-        const vector<CDNSSeedData> &vSeeds = Params().DNSSeeds();
-        int found = 0;
-            LogPrintf("Loading addresses from DNS seeds (could take a while)\n");
+            const vector<CDNSSeedData> &vSeeds = Params().DNSSeeds();
+            int found = 0;
+                LogPrintf("Loading addresses from DNS seeds (could take a while)\n");
 
-            BOOST_FOREACH(const CDNSSeedData &seed, vSeeds) {
-                if (HaveNameProxy()) {
+            BOOST_FOREACH(const CDNSSeedData &seed, vSeeds)
+            {
+                if (HaveNameProxy())
+                {
                     AddOneShot(seed.host);
-                } else {
+                } 
+                else 
+                {
                     vector<CNetAddr> vIPs;
                     vector<CAddress> vAdd;
                     if (LookupHost(seed.host.c_str(), vIPs))
                     {
                         BOOST_FOREACH(CNetAddr& ip, vIPs)
                         {
-                            if (found < 16){
-                            int nOneDay = 24*3600;
-                            CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()));
-                            addr.nTime = GetTime() - 3*nOneDay - GetRand(4*nOneDay); // use a random age between 3 and 7 days old
-                            vAdd.push_back(addr);
-                            found++;
+                            if (found < 16)
+                            {
+                                int nOneDay = 24*3600;
+                                CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()));
+                                addr.nTime = GetTime() - 3*nOneDay - GetRand(4*nOneDay); // use a random age between 3 and 7 days old
+                                vAdd.push_back(addr);
+                                found++;
                             }
                         }
                     }
@@ -837,8 +840,10 @@ return;
             set<vector<unsigned char> > setConnected;
             {
                 LOCK(cs_vNodes);
-                BOOST_FOREACH(CNode* pnode, vNodes) {
-                    if (!pnode->fInbound) {
+                BOOST_FOREACH(CNode* pnode, vNodes)
+                {
+                    if (!pnode->fInbound)
+                    {
                         setConnected.insert(pnode->addr.GetGroup());
                         nOutbound++;
                     }
@@ -855,35 +860,45 @@ return;
 
                 // if we selected an invalid address, restart
                 if (!addr.IsValid() || setConnected.count(addr.GetGroup()) || IsLocal(addr))
+                {
                     break;
+                }
 
                 // If we didn't find an appropriate destination after trying 100 addresses fetched from addrman,
                 // stop this loop, and let the outer loop run again (which sleeps, adds seed nodes, recalculates
                 // already-connected network ranges, ...) before trying new addrman addresses.
                 nTries++;
                 if (nTries > 100)
+                {
                     break;
+                }
 
                 if (IsLimited(addr))
+                {
                     continue;
+                }
 
                 // only consider very recently tried nodes after 30 failed attempts
                 if (nANow - addr.nLastTry < 600 && nTries < 30)
+                {
                     continue;
+                }
 
                 // do not allow non-default ports, unless after 50 invalid addresses selected already
                 if (addr.GetPort() != Params().GetDefaultPort() && nTries < 50)
+                {
                     continue;
+                }
 
                 addrConnect = addr;
                 break;
-                }
-
-                if (addrConnect.IsValid()){
-                    OpenNetworkConnection(addrConnect, &grant);
-                }
             }
 
+            if (addrConnect.IsValid())
+            {
+                OpenNetworkConnection(addrConnect, &grant);
+            }
+        }
     }
 }
 
@@ -901,6 +916,8 @@ void IdleNodeCheck(CNode *pnode)
             }
         }
     }
+
+    return;
 }
 
 // requires LOCK(cs_vSend)
@@ -1288,13 +1305,6 @@ void ThreadSocketHandler()
     // Refresh nodes/peers every X minutes
     RefreshRecentConnections(20);
 }
-
-
-
-
-
-
-
 
 
 #ifdef USE_UPNP
