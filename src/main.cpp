@@ -1478,49 +1478,53 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     }
     else
     {
-        // New algo: Digishield v3 + Zawy's changes
-        LogPrintf("**** Digishield v3 ****\n");
+        // New algo: LWMA
+        LogPrintf("**** LWMA ****\n");
+        vector<int64_t> vTimestamps;
+        vector<unsigned int> vTargets;
 
-        // Get the N previous timestamps and difficulties
-        const CBlockIndex* pindexFirst = pindexLast;
-        CBigNum bnTot(0);
-        for ( int64_t i = 0; i < Params().DiffAveragingWindow(); i++)
+        // Get the N previous timestamps and targets
+        const CBlockIndex* pindex = pindexLast;
+        for ( int64_t i = 0; i < Params().DiffAveragingWindow() + 1; i++)
         {  
             // Genesis block
-            if (pindexFirst == NULL) break;
+            if (pindex == NULL) break;
 
             // PoW difficulty reset: only accept blocks after the fork
             //---- ONLY NEED IN CASE OF POW ALGO CHANGE ----
             // if (!fProofOfStake)
             // {
-            //     if( (fTestNet && (pindexFirst->nHeight <= nTestnetForkOne)) ||
-            //         (!fTestNet && (pindexFirst->nHeight <= nForkOne)))
+            //     if( (fTestNet && (pindex->nHeight <= nTestnetForkOne)) ||
+            //         (!fTestNet && (pindex->nHeight <= nForkOne)))
             //     {
+            //         // Remove the last timestamp and difficulty to discard the first block after the fork
+            //         if (vTimestamps.size() > 0)
+            //         {
+            //             vTimestamps.pop_back();
+            //             vTargets.pop_back();
+            //         }
             //         break;
             //     }
             // }
 
-            LogPrintf("Block %d - Timestamp: %ld, Target: %08x\n", pindexFirst->nHeight, pindexFirst->GetBlockTime(), pindexFirst->nBits);
+            LogPrintf("Block %d - Timestamp: %ld, Target: %08x\n", pindex->nHeight, pindex->GetBlockTime(), pindex->nBits);
 
-            // Add target to total
-            CBigNum bnTmp;
-            bnTmp.SetCompact(pindexFirst->nBits);
-            bnTot += bnTmp;
+            vTimestamps.push_back(pindex->GetBlockTime());
+            vTargets.push_back(pindex->nBits);
 
             // Get previous block
-            pindexFirst = GetLastBlockIndex(pindexFirst->pprev, fProofOfStake);
+            pindex = GetLastBlockIndex(pindex->pprev, fProofOfStake);
         }
         
-        // Check we have enough blocks
-        if (pindexFirst == NULL)
+        if (vTimestamps.size() > 0)
         {
-            bnNew = bnTargetLimit;
+            // Reverse the vector to have the correct order (earliest blocks first)
+            std::reverse(vTimestamps.begin(), vTimestamps.end());
+            std::reverse(vTargets.begin(), vTargets.end());
         }
-        else
-        {
-            CBigNum bnAvg(bnTot / Params().DiffAveragingWindow());
-            bnNew = CalculateNextWorkRequired(bnAvg, pindexLast->GetMedianTimePast(), pindexFirst->GetMedianTimePast());
-        }
+
+        bnNew = CalculateNextWorkRequired(vTimestamps, vTargets);
+        LogPrintf("**** NEXT TARGET: %08x\n", bnNew.GetCompact());
     }
 
     if (bnNew <= 0 || bnNew > bnTargetLimit)
@@ -1529,32 +1533,32 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     return bnNew.GetCompact();
 }
 
-CBigNum CalculateNextWorkRequired(CBigNum bnAvg, int64_t nLastBlockTime, int64_t nFirstBlockTime)
+CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned int> vTargets)
 {
-    // Limit adjustment step
-    // Use medians to prevent time-warp attacks
-    int64_t nActualTimespan = nLastBlockTime - nFirstBlockTime;
-    LogPrintf("nActualTimespan = %d  before dampening\n", nActualTimespan);
-    nActualTimespan = Params().DiffAveragingWindowTimespan() + (nActualTimespan - Params().DiffAveragingWindowTimespan())/4;
-    LogPrintf("nActualTimespan = %d  before bounds\n", nActualTimespan);
+    // LWMA
+    const int64_t FTL = DRIFT;
+    const int64_t T = Params().DiffTargetSpacing();
+    const int64_t N = Params().DiffAveragingWindow(); 
+    const int64_t k = N*(N+1)*T/2; 
 
-    if (nActualTimespan < Params().DiffMinActualTimespan())
-        nActualTimespan = Params().DiffMinActualTimespan();
-    if (nActualTimespan > Params().DiffMaxActualTimespan())
-        nActualTimespan = Params().DiffMaxActualTimespan();
+    CBigNum bnSumTarget;
+    int64_t t = 0, j = 0, nSolvetime;
 
-    // Retarget
-    CBigNum bnNew(bnAvg);
-    bnNew /= Params().DiffAveragingWindowTimespan();
-    bnNew *= nActualTimespan;
-
-    /// debug print
-    LogPrintf("GetNextWorkRequired RETARGET\n");
-    LogPrintf("Params().DiffAveragingWindowTimespan() = %d    nActualTimespan = %d\n", Params().DiffAveragingWindowTimespan(), nActualTimespan);
-    LogPrintf("Current average: %08x  %s\n", bnAvg.GetCompact(), bnAvg.ToString());
-    LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.ToString());
-
-    return bnNew;
+    // Loop through N most recent blocks. 
+    for (unsigned int i = 1; i < vTimestamps.size(); i++) {
+        nSolvetime = vTimestamps[i] - vTimestamps[i-1];
+        nSolvetime = std::max(-FTL, std::min(nSolvetime, 6*T));
+        j++;
+        t += nSolvetime * j;  // Weighted solvetime sum.
+        CBigNum bnTarget;
+        bnTarget.SetCompact(vTargets[i]);
+        bnSumTarget += bnTarget / (k * N);
+    }
+    // Keep t reasonable to >= 1/10 of expected t.
+    if (t < k/10 ) {   t = k/10;  }
+    
+    CBigNum bnNextTarget = t * bnSumTarget;
+    return bnNextTarget;
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
