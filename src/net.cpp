@@ -900,6 +900,8 @@ void RefreshRecentConnections(int RefreshMinutes)
             }
         }
     }
+
+    return;
 }
 
 void IdleNodeCheck(CNode *pnode)
