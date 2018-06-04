@@ -19,6 +19,10 @@ CMasternodePayments masternodePayments;
 map<uint256, CMasternodePaymentWinner> mapSeenMasternodeVotes;
 
 int CMasternodePayments::GetMinMasternodePaymentsProto() {
+    if((fTestNet && (nBestHeight >= nTestnetForkOne-5)) || 
+      (!fTestNet && (nBestHeight >= nForkOne-5))) {
+        return MIN_MASTERNODE_PAYMENT_PROTO_VERSION_2;
+      }
     return MIN_MASTERNODE_PAYMENT_PROTO_VERSION_1;
 }
 
