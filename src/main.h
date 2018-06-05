@@ -78,10 +78,10 @@ inline int64_t FutureDrift(int64_t nTime) { return nTime + DRIFT; }
 static const unsigned char REJECT_INVALID = 0x10;
 
 /* Livenet hard forks */
-static const int nForkOne = 50;
+static const int nForkOne = 255000;
 
 /* Testnet hard forks */
-static const int nTestnetForkOne = 5000;
+static const int nTestnetForkOne = 7500;
 
 inline int64_t GetMNCollateral(int nHeight) { return 3000; }
 
