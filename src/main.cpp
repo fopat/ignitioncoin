@@ -2588,13 +2588,15 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                                 payee = GetScriptForDestination(winningNode->pubkey.GetID());
                                 payeerewardaddress = winningNode->rewardAddress;
                                 payeerewardpercent = winningNode->rewardPercentage;
-
+                                LogPrintf("Found winning node with mnodeman, checking data now: %s - %d\n", payee.ToString(), payeerewardpercent);
+				
                                 // If reward percent is 0 then send all to masternode address
                                 if (hasPayment && payeerewardpercent == 0) {
                                     CTxDestination address1;
                                     ExtractDestination(payee, address1);
                                     CIgnitioncoinAddress address2(address1);
                                     targetNode = address2.ToString().c_str();
+                                    LogPrintf("Detected masternode payment with 0%% reward split\n");
                                 }
 
                                 // If reward percent is 100 then send all to reward address
@@ -2603,6 +2605,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                                     ExtractDestination(payeerewardaddress, address1);
                                     CIgnitioncoinAddress address2(address1);
                                     targetNode = address2.ToString().c_str();
+                                    LogPrintf("Detected masternode payment with 100%% reward sent to alt addr\n");
                                 }
 
                                 // If reward percent is more than 0 and lower than 100 then split reward
@@ -2615,14 +2618,19 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                                     ExtractDestination(payeerewardaddress, address3);
                                     CIgnitioncoinAddress address4(address3);
                                     targetNode = address2.ToString().c_str();
+                                    LogPrintf("Detected masternode payment with >0%% <100%% reward split\n");
                                 }
                                 LogPrintf("Detected masternode payment to %s\n", targetNode);
                             } else {
-                                LogPrintf("Cannot calculate winner, so passing");
+                                LogPrintf("No winning node found with mnodeman, using non-specific masternode payments\n");
                                 foundPaymentAmount = true;
                                 foundPayee = true;
                                 foundPaymentAndPayee = true;
                             }
+                        }
+                        else
+                        {
+                            LogPrintf("Found MN Winners List, Matches This Data: Payee - %s, vin - %s\n", payee.ToString(), vin.ToString());
                         }
 
                         for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
@@ -2630,11 +2638,20 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                             ExtractDestination(vtx[1].vout[i].scriptPubKey, address1);
                             CIgnitioncoinAddress address2(address1);
                             if(vtx[1].vout[i].nValue == masternodePaymentAmount )
+                            {
                                 foundPaymentAmount = true;
+                                LogPrintf("Payment Amount Matched - %ld\n", masternodePaymentAmount);
+                            }
                             if(address2.ToString().c_str() == targetNode)
+                            {
                                 foundPayee = true;
+                                LogPrintf("Payee matched - %s\n", targetNode);
+                            }
                             if(vtx[1].vout[i].nValue == masternodePaymentAmount && address2.ToString().c_str() == targetNode)
+                            {
                                 foundPaymentAndPayee = true;
+                                LogPrintf("Matched both Payee & Payment Amount\n");
+                            }
                         }
                     }
 
