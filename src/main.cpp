@@ -2618,7 +2618,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                                     ExtractDestination(payeerewardaddress, address3);
                                     CIgnitioncoinAddress address4(address3);
                                     targetNode = address2.ToString().c_str();
-                                    LogPrintf("Detected masternode payment with >0%% <100%% reward split\n");
+                                    LogPrintf("Detected masternode payment with >0%% <100%% reward split (address4: %s)\n", address4.ToString());
                                 }
                                 LogPrintf("Detected masternode payment to %s\n", targetNode);
                             } else {
@@ -2637,6 +2637,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                             CTxDestination address1;
                             ExtractDestination(vtx[1].vout[i].scriptPubKey, address1);
                             CIgnitioncoinAddress address2(address1);
+                            LogPrintf("Slot %d - Address: %s - Amount: %ld\n", i, address2.ToString(), masternodePaymentAmount);
                             if(vtx[1].vout[i].nValue == masternodePaymentAmount )
                             {
                                 foundPaymentAmount = true;
