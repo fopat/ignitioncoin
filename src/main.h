@@ -81,7 +81,7 @@ static const unsigned char REJECT_INVALID = 0x10;
 static const int nForkOne = 255000;
 
 /* Testnet hard forks */
-static const int nTestnetForkOne = 8150;
+static const int nTestnetForkOne = 8500;
 
 inline int64_t GetMNCollateral(int nHeight) { return 3000; }
 
