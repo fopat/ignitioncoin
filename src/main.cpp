@@ -2660,7 +2660,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                             CTxDestination address1;
                             ExtractDestination(vtx[1].vout[i].scriptPubKey, address1);
                             CIgnitioncoinAddress address2(address1);
-                            LogPrintf("Slot %d - Address: %s - Amount: %ld\n", i, address2.ToString(), masternodePaymentAmount);
+                            LogPrintf("Slot %d - Address: %s - Amount: %ld\n", i, address2.ToString(), vtx[1].vout[i].nValue);
                             if(vtx[1].vout[i].nValue == masternodePaymentAmount )
                             {
                                 foundPaymentAmount = true;
