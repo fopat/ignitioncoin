@@ -1456,49 +1456,132 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
-	unsigned int nTargetTemp = TARGET_SPACING;
-	// if (pindexLast->nTime > FORK_TIME)
-	// 	nTargetTemp = TARGET_SPACING2;
-  nTargetTemp = TARGET_SPACING;
-
-	// if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME)
-	// nTargetTimespan = 2 * 60; // 2 minutes
-  //
-	// if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME1)
-	// nTargetTimespan = 10 * 60; // 10 minutes
-    nTargetTimespan = 10 * 60; // 10 minutes
-
+    CBigNum bnNew;
     CBigNum bnTargetLimit = fProofOfStake ? GetProofOfStakeLimit(pindexLast->nHeight) : Params().ProofOfWorkLimit();
 
-    if (pindexLast == NULL)
-        return bnTargetLimit.GetCompact(); // genesis block
-
-
+    /* The genesis block */
+    if(pindexLast == NULL) return bnTargetLimit.GetCompact();
     const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
-    if (pindexPrev->pprev == NULL)
-        return bnTargetLimit.GetCompact(); // first block
+    /* The 1st block */
+    if(pindexPrev->pprev == NULL) return bnTargetLimit.GetCompact();
     const CBlockIndex* pindexPrevPrev = GetLastBlockIndex(pindexPrev->pprev, fProofOfStake);
-    if (pindexPrevPrev->pprev == NULL)
-        return bnTargetLimit.GetCompact(); // second block
+    /* The 2nd block */
+    if(pindexPrevPrev->pprev == NULL) return bnTargetLimit.GetCompact();
+    /* The next block */
+    int nHeight = pindexLast->nHeight + 1;
 
-    int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+    if((fTestNet && (nHeight <= nTestnetForkTwo)) ||
+      (!fTestNet && (nHeight <= nForkTwo)))
+    {
+        // Legacy algo
+        unsigned int nTargetTemp = TARGET_SPACING;
+        // if (pindexLast->nTime > FORK_TIME)
+        // 	nTargetTemp = TARGET_SPACING2;
+        nTargetTemp = TARGET_SPACING;
 
-    if (nActualSpacing < 0){
-        nActualSpacing = nTargetTemp;
+        // if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME)
+        // nTargetTimespan = 2 * 60; // 2 minutes
+        //
+        // if(pindexLast->GetBlockTime() > STAKE_TIMESPAN_SWITCH_TIME1)
+        // nTargetTimespan = 10 * 60; // 10 minutes
+        nTargetTimespan = 10 * 60; // 10 minutes
+
+        int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+
+        if (nActualSpacing < 0){
+            nActualSpacing = nTargetTemp;
+        }
+
+        // ppcoin: target change every block
+        // ppcoin: retarget with exponential moving toward target spacing
+        bnNew.SetCompact(pindexPrev->nBits);
+        int64_t nInterval = nTargetTimespan / nTargetTemp;
+        bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
+        bnNew /= ((nInterval + 1) * nTargetTemp);
     }
+    else
+    {
+        // New algo: LWMA
+        LogPrintf("**** LWMA ****\n");
+        vector<int64_t> vTimestamps;
+        vector<unsigned int> vTargets;
 
-    // ppcoin: target change every block
-    // ppcoin: retarget with exponential moving toward target spacing
-    CBigNum bnNew;
-    bnNew.SetCompact(pindexPrev->nBits);
-    int64_t nInterval = nTargetTimespan / nTargetTemp;
-    bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
-    bnNew /= ((nInterval + 1) * nTargetTemp);
+        // Get the N previous timestamps and targets
+        const CBlockIndex* pindex = pindexLast;
+        for ( int64_t i = 0; i < Params().DiffAveragingWindow() + 1; i++)
+        {  
+            // Genesis block
+            if (pindex == NULL) break;
+
+            // PoW difficulty reset: only accept blocks after the fork
+            //---- ONLY NEED IN CASE OF POW ALGO CHANGE ----
+            // if (!fProofOfStake)
+            // {
+            //     if( (fTestNet && (pindex->nHeight <= nTestnetForkTwo)) ||
+            //         (!fTestNet && (pindex->nHeight <= nForkTwo)))
+            //     {
+            //         // Remove the last timestamp and difficulty to discard the first block after the fork
+            //         if (vTimestamps.size() > 0)
+            //         {
+            //             vTimestamps.pop_back();
+            //             vTargets.pop_back();
+            //         }
+            //         break;
+            //     }
+            // }
+
+            LogPrintf("Block %d - Timestamp: %ld, Target: %08x\n", pindex->nHeight, pindex->GetBlockTime(), pindex->nBits);
+
+            vTimestamps.push_back(pindex->GetBlockTime());
+            vTargets.push_back(pindex->nBits);
+
+            // Get previous block
+            pindex = GetLastBlockIndex(pindex->pprev, fProofOfStake);
+        }
+        
+        if (vTimestamps.size() > 0)
+        {
+            // Reverse the vector to have the correct order (earliest blocks first)
+            std::reverse(vTimestamps.begin(), vTimestamps.end());
+            std::reverse(vTargets.begin(), vTargets.end());
+        }
+
+        bnNew = CalculateNextWorkRequired(vTimestamps, vTargets);
+        LogPrintf("**** NEXT TARGET: %08x\n", bnNew.GetCompact());
+    }
 
     if (bnNew <= 0 || bnNew > bnTargetLimit)
         bnNew = bnTargetLimit;
 
     return bnNew.GetCompact();
+}
+
+CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned int> vTargets)
+{
+    // LWMA
+    const int64_t FTL = DRIFT;
+    const int64_t T = Params().DiffTargetSpacing();
+    const int64_t N = Params().DiffAveragingWindow(); 
+    const int64_t k = N*(N+1)*T/2; 
+
+    CBigNum bnSumTarget;
+    int64_t t = 0, j = 0, nSolvetime;
+
+    // Loop through N most recent blocks. 
+    for (unsigned int i = 1; i < vTimestamps.size(); i++) {
+        nSolvetime = vTimestamps[i] - vTimestamps[i-1];
+        nSolvetime = std::max(-FTL, std::min(nSolvetime, 6*T));
+        j++;
+        t += nSolvetime * j;  // Weighted solvetime sum.
+        CBigNum bnTarget;
+        bnTarget.SetCompact(vTargets[i]);
+        bnSumTarget += bnTarget / (k * N);
+    }
+    // Keep t reasonable to >= 1/10 of expected t.
+    if (t < k/10 ) {   t = k/10;  }
+    
+    CBigNum bnNextTarget = t * bnSumTarget;
+    return bnNextTarget;
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)

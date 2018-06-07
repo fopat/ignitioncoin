@@ -71,17 +71,19 @@ inline bool MoneyRange(int64_t nValue) { return (nValue >= 0 && nValue <= MAX_MO
 /** Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp. */
 static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
 
-static const int64_t DRIFT = 120;
+static const int64_t DRIFT = 360; // For LWMA
 inline int64_t FutureDrift(int64_t nTime) { return nTime + DRIFT; }
 
 /** "reject" message codes **/
 static const unsigned char REJECT_INVALID = 0x10;
 
 /* Livenet hard forks */
-static const int nForkOne = 255000;
+static const int nForkOne = 255000; // MN-fix
+static const int nForkTwo = 255000; // LWMA
 
 /* Testnet hard forks */
-static const int nTestnetForkOne = 8500;
+static const int nTestnetForkOne = 8500; // MN-fix
+static const int nTestnetForkTwo = 10000; // LWMA
 
 inline int64_t GetMNCollateral(int nHeight) { return 3000; }
 
@@ -164,6 +166,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles);
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake);
+CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned int> vTargets);
 int64_t GetProofOfWorkReward(int nHeight, int64_t nFees);
 int64_t GetProofOfStakeReward(int nHeight, int64_t nCoinAge, int64_t nFees);
 bool IsInitialBlockDownload();
