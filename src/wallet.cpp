@@ -3542,7 +3542,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
                 *nNonceBlock = (iAddrHash | iCurrentMNs);
                 fprintf(stderr, "CreateCoinStake():MN addr:%s, AddrHash:%X, nNonceBlock&~2047:%X, nNonceBlock:%X\n",
                     strAddr.c_str(), iAddrHash, (*nNonceBlock & (~2047)), *nNonceBlock); //for Debug
-                if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
+                if (IsPastForkOne(pindexBest->nHeight))
                 {
                     int iWinerAge = 0;
                     unsigned int iWinerAgeU = 0;
