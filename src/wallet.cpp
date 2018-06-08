@@ -3347,7 +3347,7 @@ uint64_t CWallet::GetStakeWeight() const
     return nWeight;
 }
 
-bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, int64_t nFees, CTransaction& txNew, CKey& key)
+bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, int64_t nFees, CTransaction& txNew, CKey& key, unsigned int* nNonceBlock)
 {
     CBlockIndex* pindexPrev = pindexBest;
     CBigNum bnTargetPerCoinDay;
@@ -3511,16 +3511,6 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     int payments = 1;
     // start masternode payments
     bool bMasterNodePayment = true; // note was false, set true to test
-
-    if ( Params().NetworkID() == CChainParams::TESTNET ){
-        if (GetTime() > START_MASTERNODE_PAYMENTS_TESTNET ){
-            bMasterNodePayment = true;
-        }
-    }else{
-        if (GetTime() > START_MASTERNODE_PAYMENTS){
-            bMasterNodePayment = true;
-        }
-    }
 
     CScript payee;
     CScript payeerewardaddress = CScript();
