@@ -22,7 +22,7 @@ int CMasternodePayments::GetMinMasternodePaymentsProto() {
     if (pindexBest == NULL) {
         return MIN_POOL_PEER_PROTO_VERSION_1;
     }
-    if(IsPastForkOne(pindexBest->nHeight+5)) {
+    if(IsPastForkOne(pindexBest->nHeight+25)) {
         return MIN_MASTERNODE_PAYMENT_PROTO_VERSION_2;
     }
     return MIN_MASTERNODE_PAYMENT_PROTO_VERSION_1;
