@@ -25,16 +25,16 @@
             ]
         },
         {
-            "name": "ignitiond staking",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/bin/ignitiond",
-            "args": ["walletpassphrase", "nemetouchepaslabite", "9999", "true", "-datadir=/src/icdata"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
+            "name": "Ignition-qt TESTNET 1.1", 
+            "type": "cppdbg", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/Ignition-qt", 
+            "args": ["-addnode=127.0.0.1:7890", "--datadir=/home/jere/ic-data/testnet-1.1"], 
+            "stopAtEntry": false, 
+            "cwd": "${workspaceFolder}", 
+            "environment": [], 
+            "externalConsole": false, 
+            "MIMode": "gdb", 
             "miDebuggerPath": "/usr/bin/gdb",
             "setupCommands": [
                 {
