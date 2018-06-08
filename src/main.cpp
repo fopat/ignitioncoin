@@ -91,10 +91,9 @@ int GetMinPoolPeerProto() {
     if (pindexBest == NULL) {
         return MIN_POOL_PEER_PROTO_VERSION_1;
     }
-    if((fTestNet && (pindexBest->nHeight >= nTestnetForkOne-5)) ||
-      (!fTestNet && (pindexBest->nHeight >= nForkOne-5))) {
+    if(IsPastForkOne(pindexBest->nHeight+5)) {
         return MIN_POOL_PEER_PROTO_VERSION_2;
-      }
+    }
     return MIN_POOL_PEER_PROTO_VERSION_1;
 }
 
@@ -102,11 +101,19 @@ int GetMinPeerProto() {
     if (pindexBest == NULL) {
         return MIN_PEER_PROTO_VERSION_1;
     }
-    if((fTestNet && (pindexBest->nHeight >= nTestnetForkOne-5)) ||
-      (!fTestNet && (pindexBest->nHeight >= nForkOne-5))) {
+    if(IsPastForkOne(pindexBest->nHeight+5)) {
         return MIN_PEER_PROTO_VERSION_2;
-      }
+    }
     return MIN_PEER_PROTO_VERSION_1;
+}
+
+bool IsPastForkOne(int nHeight)
+{
+    if((fTestNet && (nHeight >= nTestnetForkOne)) ||
+      (!fTestNet && (nHeight >= nForkOne))) 
+    {
+        return true;
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2098,7 +2105,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
 
             LogPrintf("ConnectBlock():MN addr:%s, AddrHash:%X, nNonce&~2047:%X, nNonce:%X\n", strAddr.c_str(), iAddrHash, (nNonce & (~2047)), nNonce); //for Debug
 
-            if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne) {
+            if (IsPastForkOne(pindexBest->nHeight)) {
                 if ((nNonce & (~2047)) != iAddrHash)
                 {
                     return DoS(1, error("Connect() : nNonce&~2047 (%X) != iAddrHash(%X)", (nNonce & (~2047)), iAddrHash));
@@ -2134,7 +2141,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                 if (masternodePaymentAmount > masternodePaymentShouldActual)
                 {
                     LogPrintf("Connect() : (iMidMNCount=%d) masternodePaymentAmount %ld larger than %ld.\n", iMidMNCount, masternodePaymentAmount, masternodePaymentShouldActual);//for Debug
-                    if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
+                    if (IsPastForkOne(pindexBest->nHeight))
                         return error("Connect() : (iMidMNCount=%d) masternodePaymentAmount %ld larger than %ld.", iMidMNCount, masternodePaymentAmount, masternodePaymentShouldActual);
                 }
             }
@@ -2143,14 +2150,14 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                 if (masternodePaymentAmount > masternodePaymentShouldMax)
                 {
                     LogPrintf("Connect() : (iMidMNCount=0) masternodePaymentAmount %ld larger than %ld.\n", masternodePaymentAmount, masternodePaymentShouldActual);//for Debug
-if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
+                    if (IsPastForkOne(pindexBest->nHeight))
                         return error("Connect() : (iMidMNCount=0) masternodePaymentAmount %ld larger than %ld.", masternodePaymentAmount, masternodePaymentShouldActual);
                 }
             }
             if (nStakeReward > nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount))
             {
                 LogPrintf("ConnectBlock() : coinstake pays too much V3 (actual=%ld vs calculated=%ld).\n", nStakeReward, nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount)); //for Debug
-if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
+                if (IsPastForkOne(pindexBest->nHeight))
                     return error("ConnectBlock() : coinstake pays too much V3 (actual=%ld vs calculated=%ld)", nStakeReward, nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount));
             }
             if (GetBlockTime() > (GetAdjustedTime() - 180))
@@ -3836,6 +3843,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         return false;
     }
 
+    else if (pfrom->nVersion < GetMinPeerProto())
+    {
+        // Disconnect from peers older than this proto version
+        LogPrintf("partner %s using obsolete version %i; disconnecting\n", pfrom->addr.ToString(), pfrom->nVersion);
+        pfrom->fDisconnect = true;
+        return false;
+    }
 
     else if (strCommand == "verack")
     {

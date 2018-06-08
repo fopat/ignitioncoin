@@ -83,6 +83,10 @@ static const int nForkOne = 255000;
 /* Testnet hard forks */
 static const int nTestnetForkOne = 200;
 
+/* Function to test forks */
+bool IsPastForkOne(int nHeight);
+
+
 inline int64_t GetMNCollateral(int nHeight) { return 3000; }
 
 extern CScript COINBASE_FLAGS;
