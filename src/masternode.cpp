@@ -159,7 +159,6 @@ CMasternode::CMasternode(CService newAddr, CTxIn newVin, CPubKey newPubkey, std:
 uint256 CMasternode::CalculateScore(int mod, int64_t nBlockHeight)
 {
     if(pindexBest == NULL) return 0;
-    uint256 r;
     if (nBlockHeight == 0) {
         nBlockHeight = pindexBest->nHeight;
     }
