@@ -2088,7 +2088,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
             //To Find Last Paid blocks
             CTxDestination address1;
             ExtractDestination(payeeByVal, address1);
-            CDeviantcoinAddress address2(address1);
+            CIgnitioncoinAddress address2(address1);
             std::string strAddr = address2.ToString();
             uint256 hash4;
             SHA256((unsigned char*)strAddr.c_str(), strAddr.length(), (unsigned char*)&hash4);
@@ -2098,7 +2098,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
 
             LogPrintf("ConnectBlock():MN addr:%s, AddrHash:%X, nNonce&~2047:%X, nNonce:%X\n", strAddr.c_str(), iAddrHash, (nNonce & (~2047)), nNonce); //for Debug
 
-            if (IsProtocolV3(pindex->nHeight)) {
+            if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne) {
                 if ((nNonce & (~2047)) != iAddrHash)
                 {
                     return DoS(1, error("Connect() : nNonce&~2047 (%X) != iAddrHash(%X)", (nNonce & (~2047)), iAddrHash));
@@ -2134,7 +2134,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                 if (masternodePaymentAmount > masternodePaymentShouldActual)
                 {
                     LogPrintf("Connect() : (iMidMNCount=%d) masternodePaymentAmount %ld larger than %ld.\n", iMidMNCount, masternodePaymentAmount, masternodePaymentShouldActual);//for Debug
-                    if (IsProtocolV3(pindex->nHeight))
+                    if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
                         return error("Connect() : (iMidMNCount=%d) masternodePaymentAmount %ld larger than %ld.", iMidMNCount, masternodePaymentAmount, masternodePaymentShouldActual);
                 }
             }
@@ -2143,14 +2143,14 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                 if (masternodePaymentAmount > masternodePaymentShouldMax)
                 {
                     LogPrintf("Connect() : (iMidMNCount=0) masternodePaymentAmount %ld larger than %ld.\n", masternodePaymentAmount, masternodePaymentShouldActual);//for Debug
-                    if (IsProtocolV3(pindex->nHeight))
+if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
                         return error("Connect() : (iMidMNCount=0) masternodePaymentAmount %ld larger than %ld.", masternodePaymentAmount, masternodePaymentShouldActual);
                 }
             }
             if (nStakeReward > nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount))
             {
                 LogPrintf("ConnectBlock() : coinstake pays too much V3 (actual=%ld vs calculated=%ld).\n", nStakeReward, nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount)); //for Debug
-                if (IsProtocolV3(pindex->nHeight))
+if (!fTestNet && pindexBest->nHeight > nForkOne || fTestNet && pindexBest->nHeight > nTestnetForkOne)
                     return error("ConnectBlock() : coinstake pays too much V3 (actual=%ld vs calculated=%ld)", nStakeReward, nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount));
             }
             if (GetBlockTime() > (GetAdjustedTime() - 180))
@@ -2170,7 +2170,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
             {
                 CTxDestination address1;
                 ExtractDestination(payee, address1);
-                CDeviantcoinAddress address2(address1);
+                CIgnitioncoinAddress address2(address1);
                 LogPrintf("ConnectBlock() : Couldn't find masternode payment(%d|%d) or payee(%d|%s) nHeight %d. \n",
                     foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindex->nHeight);
             }
@@ -2735,7 +2735,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 
 					CTxDestination address1;
 					ExtractDestination(payee, address1);
-					CDeviantcoinAddress address2(address1);
+					CIgnitioncoinAddress address2(address1);
 
 					if (!foundPaymentAndPayee) {
 						if (fDebug) { LogPrintf("CheckBlock() : Couldn't find masternode payment(%d|%d) or payee(%d|%s) nHeight %d. \n", foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindexBest->nHeight + 1); }
