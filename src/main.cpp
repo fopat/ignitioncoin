@@ -1479,7 +1479,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     /* The next block */
     int nHeight = pindexLast->nHeight + 1;
 
-    if(IsPastForkOne(nHeight))
+    if(!IsPastForkOne(nHeight))
     {
         // Legacy algo
         unsigned int nTargetTemp = TARGET_SPACING;
@@ -1525,7 +1525,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
             //---- ONLY NEED IN CASE OF POW ALGO CHANGE ----
             // if (!fProofOfStake)
             // {
-            //     if( (IsPastForkOne(pindex->nHeight))
+            //     if( (!IsPastForkOne(pindex->nHeight))
             //     {
             //         // Remove the last timestamp and difficulty to discard the first block after the fork
             //         if (vTimestamps.size() > 0)
