@@ -2689,153 +2689,77 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 
     // ----------- masternode payments -----------
 
-    bool MasternodePayments = false;
-    bool fIsInitialDownload = IsInitialBlockDownload();
+	bool MasternodePayments = false;
+	bool fIsInitialDownload = IsInitialBlockDownload();
 
-    if(nTime > START_MASTERNODE_PAYMENTS) MasternodePayments = true;
-    if (!fIsInitialDownload)
-    {
-        if(MasternodePayments)
-        {
-            LOCK2(cs_main, mempool.cs);
+	if (nTime > START_MASTERNODE_PAYMENTS) MasternodePayments = true;
+	if (!fIsInitialDownload)
+	{
+		if (MasternodePayments)
+		{
+			LOCK2(cs_main, mempool.cs);
 
-            CBlockIndex *pindex = pindexBest;
-            if(IsProofOfStake() && pindex != NULL){
-                if(pindex->GetBlockHash() == hashPrevBlock) {
-                    // If we don't already have its previous block, skip masternode payment step
-                    CAmount masternodePaymentAmount;
-                    for (int i = vtx[1].vout.size(); i--> 0; ) {
-                        masternodePaymentAmount = vtx[1].vout[i].nValue;
-                        break;
-                    }
-                    bool foundPaymentAmount = false;
-                    bool foundPayee = false;
-                    bool foundPaymentAndPayee = false;
+			CBlockIndex *pindex = pindexBest;
+			if (IsProofOfStake() && pindex != NULL) {
+				if (pindex->GetBlockHash() == hashPrevBlock) {
+					// If we don't already have its previous block, skip masternode payment step
+					CAmount masternodePaymentAmount;
+					for (int i = vtx[1].vout.size(); i-- > 0; ) {
+						masternodePaymentAmount = vtx[1].vout[i].nValue;
+						break;
+					}
+					bool foundPaymentAmount = false;
+					bool foundPayee = false;
+					bool foundPaymentAndPayee = false;
 
-                    CScript payee;
-                    CTxIn vin;
+					CScript payee;
+					CTxIn vin;
+					if (!masternodePayments.GetBlockPayee(pindexBest->nHeight + 1, payee, vin) || payee == CScript()) {
+						foundPayee = true; //doesn't require a specific payee
+						foundPaymentAmount = true;
+						foundPaymentAndPayee = true;
+						if (fDebug) { LogPrintf("CheckBlock() : Using non-specific masternode payments %d\n", pindexBest->nHeight + 1); }
+					}
 
-                    if((fTestNet && (pindexBest->nHeight+1 < nTestnetForkOne)) ||
-                        (!fTestNet && (pindexBest->nHeight+1 < nForkOne))) {
-                        if(!masternodePayments.GetBlockPayee(pindexBest->nHeight+1, payee, vin) || payee == CScript()){
-                            foundPayee = true; //doesn't require a specific payee
-                            foundPaymentAmount = true;
-                            foundPaymentAndPayee = true;
-                            if(fDebug) { LogPrintf("CheckBlock() : Using non-specific masternode payments %d\n", pindexBest->nHeight+1); }
-                        }
+					for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
 
-                        for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
-                            if(vtx[1].vout[i].nValue == masternodePaymentAmount )
-                                foundPaymentAmount = true;
-                            if(vtx[1].vout[i].scriptPubKey == payee )
-                                foundPayee = true;
-                            if(vtx[1].vout[i].nValue == masternodePaymentAmount && vtx[1].vout[i].scriptPubKey == payee)
-                                foundPaymentAndPayee = true;
-                        }
-                    }
-                    else {
-                        string targetNode;
-                        CScript payeerewardaddress = CScript();
-                        int payeerewardpercent = 0;
-                        bool hasPayment = true;
+						payee = vtx[1].vout[i].scriptPubKey;
 
-                        if(!masternodePayments.GetBlockPayee(pindexBest->nHeight+1, payee, vin)) {
-                            CMasternode* winningNode = mnodeman.GetCurrentMasterNode(1);
-                            if (winningNode) {
-                                payee = GetScriptForDestination(winningNode->pubkey.GetID());
-                                payeerewardaddress = winningNode->rewardAddress;
-                                payeerewardpercent = winningNode->rewardPercentage;
-                                LogPrintf("Found winning node with mnodeman, checking data now: %s - %d\n", payee.ToString(), payeerewardpercent);
+						if (vtx[1].vout[i].nValue == masternodePaymentAmount)
+							foundPaymentAmount = true;
+						if (vtx[1].vout[i].scriptPubKey == payee)
+							foundPayee = true;
+						if (vtx[1].vout[i].nValue == masternodePaymentAmount && vtx[1].vout[i].scriptPubKey == payee)
+							foundPaymentAndPayee = true;
+					}
 
-                                // If reward percent is 0 then send all to masternode address
-                                if (hasPayment && payeerewardpercent == 0) {
-                                    CTxDestination address1;
-                                    ExtractDestination(payee, address1);
-                                    CIgnitioncoinAddress address2(address1);
-                                    targetNode = address2.ToString().c_str();
-                                    LogPrintf("Detected masternode payment with 0%% reward split\n");
-                                }
+					CTxDestination address1;
+					ExtractDestination(payee, address1);
+					CDeviantcoinAddress address2(address1);
 
-                                // If reward percent is 100 then send all to reward address
-                                if (hasPayment && payeerewardpercent == 100) {
-                                    CTxDestination address1;
-                                    ExtractDestination(payeerewardaddress, address1);
-                                    CIgnitioncoinAddress address2(address1);
-                                    targetNode = address2.ToString().c_str();
-                                    LogPrintf("Detected masternode payment with 100%% reward sent to alt addr\n");
-                                }
-
-                                // If reward percent is more than 0 and lower than 100 then split reward
-                                if (hasPayment && payeerewardpercent > 0 && payeerewardpercent < 100) {
-                                    CTxDestination address1;
-                                    ExtractDestination(payeerewardaddress, address1);
-                                    CIgnitioncoinAddress address2(address1);
-
-                                    CTxDestination address3;
-                                    ExtractDestination(payee, address3);
-                                    CIgnitioncoinAddress address4(address3);
-                                    targetNode = address2.ToString().c_str();
-                                    LogPrintf("Detected masternode payment with >0%% <100%% reward split (address4: %s)\n", address4.ToString());
-                                }
-                                LogPrintf("Detected masternode payment to %s\n", targetNode);
-                            } else {
-                                LogPrintf("No winning node found with mnodeman, using non-specific masternode payments\n");
-                                foundPaymentAmount = true;
-                                foundPayee = true;
-                                foundPaymentAndPayee = true;
-                            }
-                        }
-                        else
-                        {
-                            LogPrintf("Found MN Winners List, Matches This Data: Payee - %s, vin - %s\n", payee.ToString(), vin.ToString());
-                        }
-
-                        for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
-                            CTxDestination address1;
-                            ExtractDestination(vtx[1].vout[i].scriptPubKey, address1);
-                            CIgnitioncoinAddress address2(address1);
-                            LogPrintf("Slot %d - Address: %s - Amount: %ld\n", i, address2.ToString(), vtx[1].vout[i].nValue);
-                            if(vtx[1].vout[i].nValue == masternodePaymentAmount )
-                            {
-                                foundPaymentAmount = true;
-                                LogPrintf("Payment Amount Matched - %ld\n", masternodePaymentAmount);
-                            }
-                            if(address2.ToString().c_str() == targetNode)
-                            {
-                                foundPayee = true;
-                                LogPrintf("Payee matched - %s\n", targetNode);
-                            }
-                            if(vtx[1].vout[i].nValue == masternodePaymentAmount && address2.ToString().c_str() == targetNode)
-                            {
-                                foundPaymentAndPayee = true;
-                                LogPrintf("Matched both Payee & Payment Amount\n");
-                            }
-                        }
-                    }
-
-                    CTxDestination address1;
-                    ExtractDestination(payee, address1);
-                    CIgnitioncoinAddress address2(address1);
-
-                    if(!foundPaymentAndPayee) {
-                        if(fDebug) { LogPrintf("CheckBlock() : Couldn't find masternode payment(%d|%d) or payee(%d|%s) nHeight %d. \n", foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindexBest->nHeight+1); }
-                        return DoS(100, error("CheckBlock() : Couldn't find masternode payment or payee"));
-                    } else {
-                        LogPrintf("CheckBlock() : Found payment(%d|%d) or payee(%d|%s) nHeight %d. \n", foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindexBest->nHeight+1);
-                    }
-                } else {
-                    if(fDebug) { LogPrintf("CheckBlock() : Skipping masternode payment check - nHeight %d Hash %s\n", pindexBest->nHeight+1, GetHash().ToString().c_str()); }
-                }
-            } else {
-                if(fDebug) { LogPrintf("CheckBlock() : pindex is null, skipping masternode payment check\n"); }
-            }
-        } else {
-            if(fDebug) { LogPrintf("CheckBlock() : skipping masternode payment checks\n"); }
-        }
-    } else {
-        if(fDebug) { LogPrintf("CheckBlock() : Is initial download, skipping masternode payment check %d\n", pindexBest->nHeight+1); }
-    }
-
+					if (!foundPaymentAndPayee) {
+						if (fDebug) { LogPrintf("CheckBlock() : Couldn't find masternode payment(%d|%d) or payee(%d|%s) nHeight %d. \n", foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindexBest->nHeight + 1); }
+						return DoS(100, error("CheckBlock() : Couldn't find masternode payment or payee"));
+					}
+					else {
+						LogPrintf("CheckBlock() : Found payment(%d|%d) or payee(%d|%s) nHeight %d. \n", foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindexBest->nHeight + 1);
+					}
+				}
+				else {
+					if (fDebug) { LogPrintf("CheckBlock() : Skipping masternode payment check - nHeight %d Hash %s\n", pindexBest->nHeight + 1, GetHash().ToString().c_str()); }
+				}
+			}
+			else {
+				if (fDebug) { LogPrintf("CheckBlock() : pindex is null, skipping masternode payment check\n"); }
+			}
+		}
+		else {
+			if (fDebug) { LogPrintf("CheckBlock() : skipping masternode payment checks\n"); }
+		}
+	}
+	else {
+		if (fDebug) { LogPrintf("CheckBlock() : Is initial download, skipping masternode payment check %d\n", pindexBest->nHeight + 1); }
+	}
 
 
     // Check transactions
@@ -4780,5 +4704,11 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue)
 	// if(nHeight>21000)
   //      ret = blockValue * 4/5; //80%
 
+    return ret;
+}
+
+int64_t GetMasternodePaymentSmall(int nHeight, int64_t blockValue)
+{
+    int64_t ret = GetMasternodePayment(nHeight, blockValue) / 10;
     return ret;
 }
