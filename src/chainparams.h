@@ -74,10 +74,13 @@ public:
     std::string DarksendPoolDummyAddress() const { return strDarksendPoolDummyAddress; }
     //std::string SporkKey() const { return strSporkKey; }
     //std::string MasternodePaymentPubKey() const { return strMasternodePaymentsPubKey; }
-    // LWMA
-    int64_t DiffTargetSpacing() const { return nDiffTargetSpacing; }
+
+    // Digishield
     int64_t DiffAveragingWindow() const { return nDiffAveragingWindow; }
-    
+    int64_t DiffAveragingWindowTimespan() const { return nDiffAveragingWindow * nDiffTargetSpacing; }
+    int64_t DiffMinActualTimespan() const { return (DiffAveragingWindowTimespan() * (100 - nDiffMaxAdjustUp  )) / 100; }
+    int64_t DiffMaxActualTimespan() const { return (DiffAveragingWindowTimespan() * (100 + nDiffMaxAdjustDown)) / 100; }    
+
 protected:
     CChainParams() {};
 
@@ -99,9 +102,11 @@ protected:
     //std::string strSporkKey;
     //std::string strMasternodePaymentsPubKey;
 
-    // LWMA
+    // Digishield
     int64_t nDiffAveragingWindow;
-    int64_t nDiffTargetSpacing;
+    int64_t nDiffMaxAdjustDown;
+    int64_t nDiffMaxAdjustUp;
+    int64_t nDiffTargetSpacing;    
 };
 
 /**
