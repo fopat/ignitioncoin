@@ -1531,7 +1531,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
             //     }
             // }
 
-            LogPrintf("Block %d - Timestamp: %ld, Target: %08x\n", pindexFirst->nHeight, pindexFirst->GetBlockTime(), pindexFirst->nBits);
+            LogPrintf("Block %d (%s) - Timestamp: %ld, Target: %08x\n", pindexFirst->nHeight, (pindexFirst->IsProofOfStake() ? "PoS" : "PoW"), pindexFirst->GetBlockTime(), pindexFirst->nBits);
 
             // Add target to total
             CBigNum bnTmp;
