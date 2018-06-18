@@ -47,9 +47,6 @@ set<pair<COutPoint, unsigned int> > setStakeSeen;
 
 CBigNum bnProofOfStakeLimit(~uint256(0) >> 20);
 
-/* The initial difficulty after switching to NeoScrypt (0.0625) */
-static CBigNum bnNeoScryptSwitch(~uint256(0) >> 18);
-
 unsigned int nStakeMinAge = 30 * 60; // 30 minutes
 unsigned int nModifierInterval = 8 * 60; // time to elapse before new modifier is computed
 
@@ -1502,6 +1499,8 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
         /* The hard fork to NeoScrypt */
         if(!fNeoScrypt) fNeoScrypt = true;
 
+          return(Params().NeoScryptFirstTarget().GetCompact());
+        if(!fProofOfStake && (pindexPrev->nHeight < getForkHeightOne()))
         /* LWMA */
         LogPrintf("**** LWMA ****\n");
         vector<int64_t> vTimestamps;
@@ -1528,8 +1527,8 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
 
         if (vTimestamps.size() < Params().DiffMinWindow())
         {
-            LogPrintf("**** Difficulty reset: %08x ****\n", bnNeoScryptSwitch.GetCompact());
-            return(bnNeoScryptSwitch.GetCompact());
+            LogPrintf("**** Difficulty reset: %08x ****\n", Params().NeoScryptFirstTarget().GetCompact());
+            return(Params().NeoScryptFirstTarget().GetCompact());
         }
         else
         {
