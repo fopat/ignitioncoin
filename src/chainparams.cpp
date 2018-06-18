@@ -65,6 +65,10 @@ public:
 		nDefaultPort = 44144;
 		nRPCPort = 44155;
 		bnProofOfWorkLimit = CBigNum(~uint256(0) >> 16);
+		// LWMA
+		nDiffAveragingWindow = 60; // N = 60
+		nDiffMinWindow = 5; // Start using LWMA 5 blocks after the fork
+		nDiffTargetSpacing = TARGET_SPACING;
 
 		// Build the genesis block. Note that the output of the genesis coinbase cannot
 		// be spent as it did not originally exist in the database.
