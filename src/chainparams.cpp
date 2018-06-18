@@ -68,7 +68,7 @@ public:
 		// LWMA
 		nDiffAveragingWindow = 60; // N = 60
 		nDiffMinWindow = 6; // Start using LWMA 6 blocks after the fork
-		nDiffTargetSpacing = TARGET_SPACING;
+		nDiffTargetSpacing = TARGET_SPACING * 2; // New block every 4 minutes to have a 2-minutes average
 
 		// Build the genesis block. Note that the output of the genesis coinbase cannot
 		// be spent as it did not originally exist in the database.
