@@ -48,7 +48,7 @@ set<pair<COutPoint, unsigned int> > setStakeSeen;
 CBigNum bnProofOfStakeLimit(~uint256(0) >> 20);
 
 /* The initial difficulty after switching to NeoScrypt (0.0625) */
-static CBigNum bnNeoScryptSwitch(~uint256(0) >> 28);
+static CBigNum bnNeoScryptSwitch(~uint256(0) >> 18);
 
 unsigned int nStakeMinAge = 30 * 60; // 30 minutes
 unsigned int nModifierInterval = 8 * 60; // time to elapse before new modifier is computed
@@ -1460,7 +1460,6 @@ const CBlockIndex *GetPrevBlockIndex(const CBlockIndex *pindex, uint nRange,
 unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfStake) {
     CBigNum bnTargetLimit, bnNew;
     int64 nTargetSpacing, nTargetTimespan;
-    uint i;
 
     if(fProofOfStake) bnTargetLimit = bnProofOfStakeLimit;
     else bnTargetLimit = Params().ProofOfWorkLimit();
@@ -1503,86 +1502,89 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
         /* The hard fork to NeoScrypt */
         if(!fNeoScrypt) fNeoScrypt = true;
 
-        /* PoW difficulty reset after the switch */
-        if(!fProofOfStake && (pindexPrev->nHeight < getForkHeightOne()))
-          return(bnNeoScryptSwitch.GetCompact());
+        /* LWMA */
+        LogPrintf("**** LWMA ****\n");
+        vector<int64_t> vTimestamps;
+        vector<unsigned int> vTargets;
 
-        /* Orbitcoin Super Shield (OSS);
-         * retargets every block using two averaging windows of 5 and 20 blocks,
-         * 0.25 damping and further oscillation limiting */
+        // Get the N previous timestamps and targets
+        const CBlockIndex* pindex = pindexPrev;
+        for ( int64_t i = 0; i < Params().DiffAveragingWindow() + 1; i++)
+        {  
+            // Genesis block
+            if (pindex == NULL) break;
 
-        int64 nIntervalShort = 5, nIntervalLong = 20,
-              nActualTimespan, nActualTimespanShort, nActualTimespanLong, nActualTimespanAvg,
-              nActualTimespanMax, nActualTimespanMin;
+            // PoW difficulty reset: only accept blocks after the fork
+            if (!fProofOfStake && pindex->nHeight < getForkHeightOne())
+                break;
 
-        nTargetSpacing = 2 * TARGET_SPACING;
+            vTimestamps.push_back(pindex->GetBlockTime());
+            vTargets.push_back(pindex->nBits);
+            LogPrintf("Block %d (%s) - Timestamp: %ld, Target: %08x\n", pindex->nHeight, (pindex->IsProofOfStake() ? "PoS" : "PoW"), pindex->GetBlockTime(), pindex->nBits);
 
-        nTargetTimespan = nTargetSpacing * nIntervalLong;
+            // Get previous block
+            pindex = GetPrevBlockIndex(pindex->pprev, 0, fProofOfStake);
+        }        
 
-        /* The short averaging window */
-        const CBlockIndex *pindexShort = GetPrevBlockIndex(pindexPrev,
-          nIntervalShort, fProofOfStake);
-        if(!pindexShort) return(bnTargetLimit.GetCompact());
-        nActualTimespanShort = (int64)pindexPrev->nTime - (int64)pindexShort->nTime;
-
-        /* The long averaging window */
-        const CBlockIndex *pindexLong = GetPrevBlockIndex(pindexShort,
-          nIntervalLong - nIntervalShort, fProofOfStake);
-        if(!pindexLong) return(bnTargetLimit.GetCompact());
-        nActualTimespanLong = (int64)pindexPrev->nTime - (int64)pindexLong->nTime;
-
-        /* Time warp protection */
-        nActualTimespanShort = max(nActualTimespanShort, (nTargetSpacing * nIntervalShort / 2));
-        nActualTimespanShort = min(nActualTimespanShort, (nTargetSpacing * nIntervalShort * 2));
-        nActualTimespanLong  = max(nActualTimespanLong,  (nTargetSpacing * nIntervalLong  / 2));
-        nActualTimespanLong  = min(nActualTimespanLong,  (nTargetSpacing * nIntervalLong  * 2));
-
-        /* The average of both windows */
-        nActualTimespanAvg = (nActualTimespanShort * (nIntervalLong / nIntervalShort) + nActualTimespanLong) / 2;
-
-        /* 0.25 damping */
-        nActualTimespan = nActualTimespanAvg + 3 * nTargetTimespan;
-        nActualTimespan /= 4;
-
-        if(fDebug) {
-            fProofOfStake ? printf("RETARGET PoS ") : printf("RETARGET PoW ");
-            printf("heights: Last = %d, Prev = %d, Short = %d, Long = %d\n",
-              pindexLast->nHeight, pindexPrev->nHeight, pindexShort->nHeight, pindexLong->nHeight);
-            printf("RETARGET time stamps: Last = %u, Prev = %u, Short = %u, Long = %u\n",
-              pindexLast->nTime, pindexPrev->nTime, pindexShort->nTime, pindexLong->nTime);
-            printf("RETARGET windows: short = %" PRI64d " (%" PRI64d "), long = %" PRI64d \
-              ", average = %" PRI64d ", damped = %" PRI64d "\n",
-              nActualTimespanShort, nActualTimespanShort * (nIntervalLong / nIntervalShort),
-              nActualTimespanLong, nActualTimespanAvg, nActualTimespan);
+        if (vTimestamps.size() < Params().DiffMinWindow())
+        {
+            LogPrintf("**** Difficulty reset: %08x ****\n", bnNeoScryptSwitch.GetCompact());
+            return(bnNeoScryptSwitch.GetCompact());
+        }
+        else
+        {
+            // Reverse the vector to have the correct order (earliest blocks first)
+            std::reverse(vTimestamps.begin(), vTimestamps.end());
+            std::reverse(vTargets.begin(), vTargets.end());
         }
 
-        /* Oscillation limiters */
-        nActualTimespanMin = nTargetTimespan * 100 / 110; /* +10% */
-        nActualTimespanMax = nTargetTimespan * 120 / 100; /* -20% */
-        if(nActualTimespan < nActualTimespanMin) nActualTimespan = nActualTimespanMin;
-        if(nActualTimespan > nActualTimespanMax) nActualTimespan = nActualTimespanMax;
-
-        /* Retarget */
-        bnNew.SetCompact(pindexPrev->nBits);
-        bnNew *= nActualTimespan;
-        bnNew /= nTargetTimespan;
-
-        if(bnNew > bnTargetLimit) bnNew = bnTargetLimit;
-
-        if(fDebug)
-          printf("RETARGET nTargetTimespan = %" PRI64d ", nActualTimespan = %" PRI64d \
-            ", nTargetTimespan / nActualTimespan = %.4f\n",
-            nTargetTimespan, nActualTimespan, (float)nTargetTimespan / nActualTimespan);
-
+        bnNew = CalculateNextWorkRequired(vTimestamps, vTargets);
     }
 
-    if(fDebug) {
-        printf("Before: %08x  %s\n", pindexPrev->nBits,
-          CBigNum().SetCompact(pindexPrev->nBits).getuint256().ToString().c_str());
-        printf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.getuint256().ToString().c_str());
-    }
+    LogPrintf("Before: %08x  %s\n", pindexPrev->nBits,
+        CBigNum().SetCompact(pindexPrev->nBits).getuint256().ToString().c_str());
+    LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.getuint256().ToString().c_str());
 
     return(bnNew.GetCompact());
+}
+
+CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned int> vTargets)
+{
+    // LWMA
+    const int64_t FTL = DRIFT;
+    const int64_t T = Params().DiffTargetSpacing();
+    int64_t N = vTimestamps.size() - 1; 
+    int64_t k = N*(N+1)*T/2; 
+
+    LogPrintf("N = %d\n", N);
+    LogPrintf("k = %d\n", k);
+
+    CBigNum bnSumTarget;
+    int64_t t = 0, j = 0, nSolvetime;
+
+    // Loop through N most recent blocks. 
+    for (unsigned int i = 1; i <= N; i++) {
+        LogPrintf("-------------------\n");
+        LogPrintf("i = %d\n", i);
+        nSolvetime = vTimestamps[i] - vTimestamps[i-1];
+        LogPrintf("Solvetime: %ld\n", nSolvetime);
+        nSolvetime = std::max(-FTL, std::min(nSolvetime, 6*T));
+        LogPrintf("Solvetime after dampening: %ld\n", nSolvetime);
+        j++;
+        t += nSolvetime * j;  // Weighted solvetime sum.
+        LogPrintf("Weighted solvetime sum: %ld\n", t);
+        CBigNum bnTarget;
+        bnTarget.SetCompact(vTargets[i]);
+        bnSumTarget += bnTarget / (k * N);
+        LogPrintf("Target sum: %s\n", bnSumTarget.ToString());
+    }
+    // Keep t reasonable to >= 1/10 of expected t.
+    if (t < k/10 ) {   t = k/10;  }
+    LogPrintf("-------------------\n");
+    LogPrintf("Weighted solvetime sum after limiting: %ld\n", t);
+    
+    CBigNum bnNextTarget = t * bnSumTarget;
+    return bnNextTarget;
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
@@ -2775,7 +2777,7 @@ bool CBlock::AcceptBlock()
     uint nOurTime = (uint)GetAdjustedTime();
 
     /* Check for time stamp (future limit) */
-    if(nTime > (nOurTime + 2 * 60))
+    if(nTime > FutureDrift(nOurTime))
       return(DoS(5, error("AcceptBlock() : block %s height %d has a time stamp too far in the future",
         hash.ToString().substr(0,20).c_str(), nHeight)));
 

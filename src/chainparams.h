@@ -74,6 +74,12 @@ public:
     std::string DarksendPoolDummyAddress() const { return strDarksendPoolDummyAddress; }
     //std::string SporkKey() const { return strSporkKey; }
     //std::string MasternodePaymentPubKey() const { return strMasternodePaymentsPubKey; }
+
+    // LWMA
+    int64_t DiffTargetSpacing() const { return nDiffTargetSpacing; }
+    int64_t DiffAveragingWindow() const { return nDiffAveragingWindow; }
+    int64_t DiffMinWindow() const { return nDiffMinWindow; }
+
 protected:
     CChainParams() {};
 
@@ -94,6 +100,11 @@ protected:
     std::string strDarksendPoolDummyAddress;
     //std::string strSporkKey;
     //std::string strMasternodePaymentsPubKey;
+
+    // LWMA
+    int64_t nDiffAveragingWindow;
+    int64_t nDiffMinWindow;
+    int64_t nDiffTargetSpacing;
 };
 
 /**
