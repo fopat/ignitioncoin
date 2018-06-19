@@ -1533,10 +1533,8 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
         /* The hard fork to NeoScrypt */
         if(!fNeoScrypt) fNeoScrypt = true;
 
-          return(Params().NeoScryptFirstTarget().GetCompact());
-        if(!fProofOfStake && (pindexPrev->nHeight < getForkHeightOne()))
         /* LWMA */
-        LogPrintf("**** LWMA ****\n");
+        LogPrintf("**** LWMA - Height %d, %s ****\n", nHeight, (fProofOfStake ? "PoS" : "PoW"));
         vector<int64_t> vTimestamps;
         vector<unsigned int> vTargets;
 
@@ -1600,9 +1598,9 @@ CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned i
         //LogPrintf("-------------------\n");
         //LogPrintf("i = %d\n", i);
         nSolvetime = vTimestamps[i] - vTimestamps[i-1];
-        LogPrintf("Solvetime: %ld\n", nSolvetime);
+        LogPrintf("Solvetime: %ld, ", nSolvetime);
         nSolvetime = std::max(-FTL, std::min(nSolvetime, 6*T));
-        LogPrintf("Solvetime after dampening: %ld\n", nSolvetime);
+        LogPrintf("after dampening: %ld\n", nSolvetime);
         j++;
         t += nSolvetime * j;  // Weighted solvetime sum.
         //LogPrintf("Weighted solvetime sum: %ld\n", t);
