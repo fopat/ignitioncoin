@@ -68,7 +68,8 @@ public:
 		/* The initial difficulty after switching to NeoScrypt (0.0625) */
 		bnNeoScryptFirstTarget = CBigNum(~uint256(0) >> 28);
 		// LWMA
-		nDiffAveragingWindow = 60; // N = 60
+		nDiffAveragingWindowPoW = 60; // N = 60 for PoW
+		nDiffAveragingWindowPoS = 30; // N = 60 for PoS
 		nDiffMinWindow = 6; // Start using LWMA 6 blocks after the fork
 		nDiffTargetSpacing = TARGET_SPACING * 2; // New block every 4 minutes to have a 2-minutes average
 

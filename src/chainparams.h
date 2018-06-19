@@ -78,7 +78,7 @@ public:
 
     // LWMA
     int64_t DiffTargetSpacing() const { return nDiffTargetSpacing; }
-    int64_t DiffAveragingWindow() const { return nDiffAveragingWindow; }
+    int64_t DiffAveragingWindow(bool fProofOfStake) const { return (fProofOfStake ? nDiffAveragingWindowPoS : nDiffAveragingWindowPoW); }
     int64_t DiffMinWindow() const { return nDiffMinWindow; }
 
 protected:
@@ -104,7 +104,8 @@ protected:
     //std::string strMasternodePaymentsPubKey;
 
     // LWMA
-    int64_t nDiffAveragingWindow;
+    int64_t nDiffAveragingWindowPoW;
+    int64_t nDiffAveragingWindowPoS;
     int64_t nDiffMinWindow;
     int64_t nDiffTargetSpacing;
 };

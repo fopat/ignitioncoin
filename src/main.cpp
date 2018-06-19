@@ -1506,7 +1506,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
 
         // Get the N previous timestamps and targets
         const CBlockIndex* pindex = pindexPrev;
-        for ( int64_t i = 0; i < Params().DiffAveragingWindow() + 1; i++)
+        for ( int64_t i = 0; i < Params().DiffAveragingWindow(fProofOfStake) + 1; i++)
         {  
             // Genesis block
             if (pindex == NULL) break;
@@ -1523,7 +1523,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
             pindex = GetPrevBlockIndex(pindex->pprev, 0, fProofOfStake);
         }        
 
-        if (vTimestamps.size() < Params().DiffMinWindow())
+        if ((int64_t)vTimestamps.size() < Params().DiffMinWindow())
         {
             LogPrintf("**** Difficulty reset: %08x ****\n", Params().NeoScryptFirstTarget().GetCompact());
             return(Params().NeoScryptFirstTarget().GetCompact());
@@ -1535,7 +1535,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
             std::reverse(vTargets.begin(), vTargets.end());
         }
 
-        bnNew = CalculateNextWorkRequired(vTimestamps, vTargets);
+        bnNew = CalculateNextWorkRequired(vTimestamps, vTargets, fProofOfStake);
     }
 
     LogPrintf("Before: %08x  %s\n", pindexPrev->nBits,
@@ -1545,42 +1545,56 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
     return(bnNew.GetCompact());
 }
 
-CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned int> vTargets)
+CBigNum CalculateNextWorkRequired(vector<int64_t> vTimestamps, vector<unsigned int> vTargets, bool fProofOfStake)
 {
-    // LWMA
-    const int64_t FTL = DRIFT;
+    CBigNum bnNextTarget;
     const int64_t T = Params().DiffTargetSpacing();
+    const int64_t FTL = DRIFT;
     int64_t N = vTimestamps.size() - 1; 
-    int64_t k = N*(N+1)*T/2; 
+    LogPrintf("N = %d\n", N);
 
-    //LogPrintf("N = %d\n", N);
-    //LogPrintf("k = %d\n", k);
-
-    CBigNum bnSumTarget;
-    int64_t t = 0, j = 0, nSolvetime;
-
-    // Loop through N most recent blocks. 
-    for (unsigned int i = 1; i <= N; i++) {
-        //LogPrintf("-------------------\n");
-        //LogPrintf("i = %d\n", i);
-        nSolvetime = vTimestamps[i] - vTimestamps[i-1];
-        LogPrintf("Solvetime: %ld, ", nSolvetime);
-        nSolvetime = std::max(-FTL, std::min(nSolvetime, 6*T));
-        LogPrintf("after dampening: %ld\n", nSolvetime);
-        j++;
-        t += nSolvetime * j;  // Weighted solvetime sum.
-        //LogPrintf("Weighted solvetime sum: %ld\n", t);
-        CBigNum bnTarget;
-        bnTarget.SetCompact(vTargets[i]);
-        bnSumTarget += bnTarget / (k * N);
-        //LogPrintf("Target sum: %s\n", bnSumTarget.ToString());
+    if (fProofOfStake)
+    {
+        // PoS specific algo
+        LogPrintf("LWMA - PoS\n");
+        unsigned int nNextTarget = (vTargets.back() - vTargets.front())*4*T/(N*T*3+vTimestamps.back()-vTimestamps.front()) ;
+        bnNextTarget.SetCompact(nNextTarget);
+        //bnNextTarget = (vTargets.back() - vTargets.front())*4*T/(N*T*3+vTimestamps.back()-vTimestamps.front()) ;
     }
-    // Keep t reasonable to >= 1/10 of expected t.
-    if (t < k/10 ) {   t = k/10;  }
-    //LogPrintf("-------------------\n");
-    //LogPrintf("Weighted solvetime sum after limiting: %ld\n", t);
-    
-    CBigNum bnNextTarget = t * bnSumTarget;
+    else
+    {
+        // LWMA
+        LogPrintf("LWMA - PoW\n");
+        int64_t k = N*(N+1)*T/2; 
+        //LogPrintf("k = %d\n", k);
+
+        CBigNum bnSumTarget;
+        int64_t t = 0, j = 0, nSolvetime;
+
+        // Loop through N most recent blocks. 
+        for (unsigned int i = 1; i <= N; i++) {
+            //LogPrintf("-------------------\n");
+            //LogPrintf("i = %d\n", i);
+            nSolvetime = vTimestamps[i] - vTimestamps[i-1];
+            LogPrintf("Solvetime: %ld, ", nSolvetime);
+            nSolvetime = std::max(-FTL, std::min(nSolvetime, 6*T));
+            LogPrintf("after dampening: %ld\n", nSolvetime);
+            j++;
+            t += nSolvetime * j;  // Weighted solvetime sum.
+            //LogPrintf("Weighted solvetime sum: %ld\n", t);
+            CBigNum bnTarget;
+            bnTarget.SetCompact(vTargets[i]);
+            bnSumTarget += bnTarget / (k * N);
+            //LogPrintf("Target sum: %s\n", bnSumTarget.ToString());
+        }
+        // Keep t reasonable to >= 1/10 of expected t.
+        if (t < k/10 ) {   t = k/10;  }
+        //LogPrintf("-------------------\n");
+        //LogPrintf("Weighted solvetime sum after limiting: %ld\n", t);
+        
+        bnNextTarget = t * bnSumTarget;
+    }
+
     return bnNextTarget;
 }
 
