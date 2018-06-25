@@ -1541,7 +1541,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
             if (pindex == NULL) break;
 
             // PoW difficulty reset: only accept blocks after the fork
-            if (!fProofOfStake && pindex->nHeight < getForkHeightOne())
+            if (!fProofOfStake && pindex->nHeight < GetForkHeightOne())
                 break;
 
             vTimestamps.push_back(pindex->GetBlockTime());
