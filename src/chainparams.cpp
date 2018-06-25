@@ -151,8 +151,8 @@ public:
 		bnProofOfWorkLimit = CBigNum(~uint256(0) >> 16);
 		bnNeoScryptFirstTarget = CBigNum(~uint256(0) >> 20);
 		vAlertPubKey = ParseHex("042a4acc6f2c09d425e45c73b11e8f5c2afefdab644689948dbe3e7efbd32bfe8a810ed0532359f42f6a15830137c28d10504056cb64539e5fea5f9ed1dc62aa2b");
-		nDefaultPort = 33143;
-		nRPCPort = 33165;
+		nDefaultPort = 33133;
+		nRPCPort = 33155;
 		strDataDir = "testnet";
 
 		// Modify the testnet genesis block so the timestamp is valid for a later start.

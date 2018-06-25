@@ -91,7 +91,7 @@ int GetMinPoolPeerProto() {
     if (pindexBest == NULL) {
         return MIN_POOL_PEER_PROTO_VERSION_1;
     }
-    if(pindexBest->nHeight >= getForkHeightOne()-5)
+    if(pindexBest->nHeight >= GetForkHeightOne()-5)
     {
         return MIN_POOL_PEER_PROTO_VERSION_2;
     }
@@ -102,25 +102,25 @@ int GetMinPeerProto() {
     if (pindexBest == NULL) {
         return MIN_PEER_PROTO_VERSION_1;
     }
-    if(pindexBest->nHeight >= getForkHeightOne()-5)
+    if(pindexBest->nHeight >= GetForkHeightOne()-5)
     {
         return MIN_PEER_PROTO_VERSION_2;
     }
     return MIN_PEER_PROTO_VERSION_1;
 }
 
-int GetMinInstantXProto() { 
-    if (pindexBest == NULL) { 
-        return MIN_INSTANTX_PROTO_VERSION_1; 
-    } 
-    if(pindexBest->nHeight >= getForkHeightOne()-5) { 
-        return MIN_INSTANTX_PROTO_VERSION_2; 
-    } 
-    return MIN_INSTANTX_PROTO_VERSION_1; 
-} 
+int GetMinInstantXProto() {
+    if (pindexBest == NULL) {
+        return MIN_INSTANTX_PROTO_VERSION_1;
+    }
+    if(pindexBest->nHeight >= GetForkHeightOne()-5) {
+        return MIN_INSTANTX_PROTO_VERSION_2;
+    }
+    return MIN_INSTANTX_PROTO_VERSION_1;
+}
 
 // Fork heights
-const int getForkHeightOne()
+const int GetForkHeightOne()
 {
     if (fTestNet)
     {
@@ -1375,11 +1375,6 @@ void static PruneOrphanBlocks()
     mapOrphanBlocks.erase(hash);
 }
 
-static CBigNum GetProofOfStakeLimit(int nHeight)
-{
-    return bnProofOfStakeLimit;
-}
-
 // miner's coin base reward
 // the yr1 1Mil, yr2-5 1Mil 5-10 1Mil 10-20 1Mil 20-50 1Mil distribution
 int64_t GetProofOfWorkReward(int nHeight, int64_t nFees)
@@ -1505,7 +1500,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfS
     /* The next target block */
     int nHeight = pindexLast->nHeight + 1;
 
-    if(nHeight < getForkHeightOne()) {
+    if(nHeight < GetForkHeightOne()) {
 
         /* The next down to the nearest block of the type requested */
         const CBlockIndex *pindexPrevPrev = GetPrevBlockIndex(pindexPrev, 1, fProofOfStake);
@@ -2163,7 +2158,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
         if (nStakeReward > nCalculatedStakeReward)
             return DoS(100, error("ConnectBlock() : coinstake pays too much(actual=%d vs calculated=%d)", nStakeReward, nCalculatedStakeReward));
 
-        if (pindex->nHeight >= getForkHeightOne())
+        if (pindex->nHeight >= GetForkHeightOne())
         {
             int64_t masternodePaymentShouldMax = GetMasternodePayment(pindex->nHeight, nCalculatedStakeReward);
             int64_t masternodePaymentShouldActual = masternodePaymentShouldMax;
@@ -2828,7 +2823,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                     }
 
                     for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
-                        if (pindex->nHeight >= getForkHeightOne())
+                        if (pindex->nHeight >= GetForkHeightOne())
                         {
                             // Deviant fix - makes the checks useless because checks are done in the ConnectBlock function
                             LogPrintf("CheckBlock() : payee before - %s, payee after %s", payee.ToString(), vtx[1].vout[i].scriptPubKey.ToString());
@@ -2946,7 +2941,7 @@ bool CBlock::AcceptBlock()
       return(DoS(5, error("AcceptBlock() : block %s height %d has a time stamp too far in the future",
         hash.ToString().substr(0,20).c_str(), nHeight)));
 
-    if(nHeight > getForkHeightOne()) {
+    if(nHeight > GetForkHeightOne()) {
 
         /* Check for time stamp (past limit #1) */
         if(nTime <= (uint)pindexPrev->GetMedianTimePast())
@@ -2966,7 +2961,7 @@ bool CBlock::AcceptBlock()
 
     }
 
-    if((nHeight > getForkHeightOne()) && IsProofOfWork() && !IsInitialBlockDownload()) {
+    if((nHeight > GetForkHeightOne()) && IsProofOfWork() && !IsInitialBlockDownload()) {
 
         /* PoW block limiter */
         if(nTime <= ((uint)pindexPrev->GetMedianTimePast() + BLOCK_LIMITER_TIME)) {
@@ -3056,7 +3051,7 @@ uint256 CBlockIndex::GetBlockTrust() const {
 
     /* Old protocol */
 
-    if(nHeight < getForkHeightOne())
+    if(nHeight < GetForkHeightOne())
       return(((CBigNum(1) << 256) / (bnTarget + 1)).getuint256());
 
     /* New protocol derived from Halcyon */

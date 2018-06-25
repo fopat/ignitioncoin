@@ -84,13 +84,13 @@ static const unsigned char REJECT_INVALID = 0x10;
 /** Forks **/
 /* IMPORTANT: fork one should never be before block 17 */
 /* Livenet hard forks */ 
-static const int nForkOne = 200000; 
+static const int nForkOne = 215000; 
  
 /* Testnet hard forks */ 
 static const int nTestnetForkOne = 120; 
 
 /* Fork testing function */
-const int getForkHeightOne();
+const int GetForkHeightOne();
 
 
 inline int64_t GetMNCollateral(int nHeight) { return 3000; }
@@ -708,7 +708,7 @@ public:
         if (nBestHeight == 0) {
             return CURRENT_BLOCK_VERSION_1;
         }
-        if(nBestHeight >= getForkHeightOne()-5)
+        if(nBestHeight >= GetForkHeightOne()-5)
         {
             return CURRENT_BLOCK_VERSION_2;
         }
@@ -747,7 +747,7 @@ public:
         uint profile = 0x0;
 
         /* All these blocks must be v2+ with valid nHeight */
-        if(GetBlockHeight() < getForkHeightOne())
+        if(GetBlockHeight() < GetForkHeightOne())
           profile = 0x3;
 
         profile |= nNeoScryptOptions;
