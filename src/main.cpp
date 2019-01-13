@@ -3138,6 +3138,15 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
 {
     AssertLockHeld(cs_main);
 
+    if (pindexBest->nHeight == GetForkHeightTwo())
+    {
+        LogPrintf("**** FORK TWO");
+    }
+    if (pindexBest->nHeight == Params().LastPOWBlock())
+    {
+        LogPrintf("**** LAST POW BLOCK");
+    }
+
     // Check for duplicate
     uint256 hash = pblock->GetHash();
     if (mapBlockIndex.count(hash))
@@ -4914,6 +4923,8 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue)
 
 	if(nHeight >= GetForkHeightTwo())
         ret = blockValue * 55/100; //55%
+
+    LogPrintf("GetMasternodePayment: %lu\n", ret);
 
     return ret;
 }
