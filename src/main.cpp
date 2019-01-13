@@ -2249,21 +2249,26 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                 }
                 iWinerAge = iLastPaid;
                 iMidMNCount = (unsigned int)GetMidMasternodesUntilPrev();
+                LogPrintf("iMidMNCount: %u\n", iMidMNCount);
 
                 LogPrint("coinstake", "ConnectBlock(): iWinerAge=%u,iMidMNCount=%u,nHeight=%d\n", iWinerAge, iMidMNCount, pindex->nHeight); //for Debug
 
                 // Check if the MN has won recently by comparing the block count since the last win with the median nb of MNs
                 if (iWinerAge > (iMidMNCount * MASTERNODE_MIN_WINNER_AGE_PERCENTAGE))
                 {
+                    LogPrintf("Winner age OK\n");
                     ;
                 }
                 else
                 {
+                    LogPrintf("Winner age < 60%% MNs\n");
                     // If it has won too recently
                     if (pindex->nHeight >= GetForkHeightTwo())
                     {
                         // If the delay since the last block is too big, it means there has been a sudden MN count drop
                         int64_t medianTimePast = pindex->GetMedianTimePast(true, MASTERNODE_MID_MN_COUNT_TIMESPAN);
+                        LogPrintf("medianTimePast: %lu\n", medianTimePast);
+                        LogPrintf("Current block time: %lu\n", pindex->GetBlockTime());
                         if (pindex->GetBlockTime() > (medianTimePast + MASTERNODE_WINNER_AGE_BYPASS_DELAY))
                         {
                             ; // Bypass the protection to unfreeze the network
