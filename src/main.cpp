@@ -2269,12 +2269,15 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                         int64_t medianTimePast = pindex->GetMedianTimePast(true, MASTERNODE_MID_MN_COUNT_TIMESPAN);
                         LogPrintf("medianTimePast: %lu\n", medianTimePast);
                         LogPrintf("Current block time: %lu\n", pindex->GetBlockTime());
+                        LogPrintf("Unfreeze time: %lu\n", (medianTimePast + MASTERNODE_WINNER_AGE_BYPASS_DELAY));
                         if (pindex->GetBlockTime() > (medianTimePast + MASTERNODE_WINNER_AGE_BYPASS_DELAY))
                         {
+                            LogPrintf("Unfreeze\n");
                             ; // Bypass the protection to unfreeze the network
                         }
                         else
                         {
+                            LogPrintf("Small payment\n");
                             masternodePaymentShouldActual = GetMasternodePaymentSmall(pindex->nHeight, nCalculatedStakeReward);
                         }
                     }
